@@ -17,8 +17,8 @@ class BleClientModel {
     }
 
     @SuppressLint("MissingPermission")
-    boolean isBtEnabled(BluetoothAdapter adapter) {
-        return adapter.isEnabled();
+    boolean isBtEnabled() {
+        return BluetoothAdapter.getDefaultAdapter().isEnabled();
     }
 
 

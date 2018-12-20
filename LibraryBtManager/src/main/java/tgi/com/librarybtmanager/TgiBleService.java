@@ -1,9 +1,7 @@
 package tgi.com.librarybtmanager;
 
-import android.annotation.SuppressLint;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -37,6 +35,7 @@ public class TgiBleService extends Service {
         super.onCreate();
         LogUtils.showLog("service is created.");
         mBleClientModel = new BleClientModel();
+        mBtEnableState = mBleClientModel.isBtEnabled() ? BluetoothAdapter.STATE_ON : BluetoothAdapter.STATE_OFF;
         mHandler = new Handler();
         //1,监听本机蓝牙打开状态
         registerReceivers();
@@ -61,7 +60,7 @@ public class TgiBleService extends Service {
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (!mBleClientModel.isBtEnabled(BluetoothAdapter.getDefaultAdapter())) {
+                if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
                     enableBt();
                 }
             }
@@ -113,15 +112,28 @@ public class TgiBleService extends Service {
             TgiBleService.this.enableBt();
         }
 
-        void startScanDevice(TgiBleScanCallback callback){
-            mBleClientModel.startScanBtDevices(callback,mHandler);
+        void startScanDevice(final TgiBleScanCallback callback) {
+            checkBtStateBeforeProceed(new Runnable(){
+                @Override
+                public void run() {
+                    mBleClientModel.startScanBtDevices(callback, mHandler);
+                }
+            });
+
         }
 
-        void stopScanDevice(TgiBleScanCallback callback){
+        void stopScanDevice(TgiBleScanCallback callback) {
             mBleClientModel.stopScanBtDevices(callback);
         }
 
+    }
 
+    private void checkBtStateBeforeProceed(Runnable onProceed) {
+        if(mBtEnableState!=BluetoothAdapter.STATE_ON){
+            enableBt();
+        }else {
+            onProceed.run();
+        }
     }
 
     private class TgiBtEnableStatesReceiver extends BroadcastReceiver {
