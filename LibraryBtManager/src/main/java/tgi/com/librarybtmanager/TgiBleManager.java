@@ -23,12 +23,12 @@ import java.lang.ref.WeakReference;
  */
 public class TgiBleManager {
     private static final int REQUEST_CODE_LOCATION_PERMISSION = 9528;
-    private static final int REQUEST_CODE_ENABLE_BT=9529;
     static TgiBleManager tgiBleManager;
     private BleClientModel mBleClientModel;
     private BleInitCallBack mBleInitCallBack;
     private TgiBleService.TgiBleServiceBinder mTgiBleServiceBinder;
     private ServiceConnection mServiceConnection;
+    private TgiBleScanCallback mTgiBleScanCallback;
 
 
     private TgiBleManager() {
@@ -76,11 +76,7 @@ public class TgiBleManager {
         startBtService(activity);
     }
 
-    private void startBtService(final Activity activity) {
-        //4，返回一个binder，用来操纵service
-        //5，在binder中设置一个回调，用来接收service返回的有用数据
-        //6，当在回调中发现本机蓝牙模块关闭时，尝试重新打开。1-6流程到此完结。以上是初始化的工作。
-        final WeakReference<Activity> reference=new WeakReference<>(activity);
+    private void startBtService(Activity activity) {
         mServiceConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
@@ -88,24 +84,16 @@ public class TgiBleManager {
                 mTgiBleServiceBinder = (TgiBleService.TgiBleServiceBinder) service;
                 //5，在binder中设置一个回调，用来接收service返回的有用数据
                 mTgiBleServiceBinder.setCallBack(new TgiBleServiceCallback() {
-                    //7，当在回调中发现本机蓝牙模块关闭时，尝试重新打开。1-7流程到此完结。以上是初始化的工作。
+                    //6，当在回调中发现本机蓝牙模块关闭时，尝试重新打开。1-6流程到此完结。以上是本机蓝牙初始化的工作。
                     @Override
                     public void onBtAvailabilityChanged(int previousState, int currentState) {
                         super.onBtAvailabilityChanged(previousState, currentState);
-                        LogUtils.showLog("onBtAvailabilityChanged pre:"+previousState+" current:"+currentState);
+                        LogUtils.showLog("onBtAvailabilityChanged pre:" + previousState + " current:" + currentState);
                         if (currentState == BluetoothAdapter.STATE_OFF) {
-                            if(reference.get()!=null){
-                                enableBt(reference.get());
-                            }
-
+                            mTgiBleServiceBinder.enableBt();
                         }
                     }
                 });
-                if(!mBleClientModel.isBtEnabled(BluetoothAdapter.getDefaultAdapter())){
-                    if(reference.get()!=null){
-                        enableBt(reference.get());
-                    }
-                }
             }
 
             @Override
@@ -120,20 +108,30 @@ public class TgiBleManager {
         );
     }
 
-    private void enableBt(Activity activity) {
-        LogUtils.showLog("enable bt.");
-        Intent intent=new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        activity.startActivityForResult(intent,REQUEST_CODE_ENABLE_BT);
-    }
 
-    public void stopBtService(Activity activity){
-        if(mServiceConnection!=null){
+    public void stopBtService(Activity activity) {
+        if (mServiceConnection != null) {
             activity.unbindService(mServiceConnection);
-            mServiceConnection=null;
+            mServiceConnection = null;
         }
     }
 
+    //扫描周围蓝牙设备
+    public void startScanBtDevices(TgiBleScanCallback callback){
+        if(mTgiBleServiceBinder==null){
+            return;
+        }
+        mTgiBleScanCallback=callback;
+        mTgiBleServiceBinder.startScanDevice(callback);
+    }
 
+    //停止扫描周围蓝牙设备
+    public void stopScanBtDevcie(){
+        if(mTgiBleServiceBinder==null||mTgiBleScanCallback==null){
+            return;
+        }
+        mTgiBleServiceBinder.stopScanDevice(mTgiBleScanCallback);
+    }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     public void onRequestBtPermissionsResult(
@@ -151,6 +149,12 @@ public class TgiBleManager {
                     public void run() {
                         //2，检查蓝牙硬件是否支持BLE
                         checkIfBtAvailable(activity);
+                    }
+                },
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        activity.onBackPressed();
                     }
                 }
         );

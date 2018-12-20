@@ -1,7 +1,9 @@
 package tgi.com.librarybtmanager;
 
+import android.annotation.SuppressLint;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -20,7 +22,7 @@ import android.support.annotation.Nullable;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
- public class TgiBleService extends Service {
+public class TgiBleService extends Service {
     private BleClientModel mBleClientModel;
     private TgiBleServiceBinder mBinder;
     private TgiBtEnableStatesReceiver mBtConnStatesReceiver;
@@ -52,28 +54,30 @@ import android.support.annotation.Nullable;
     public IBinder onBind(Intent intent) {
         LogUtils.showLog("service is bounded.");
         mBinder = new TgiBleServiceBinder();
-//        //4,检查蓝牙是否被打开了，如果没有，现在打开。
-//        //为什么要500毫秒后再执行？这是为了保证mBinder对象被先返回给TgiBleManager
-//        //如果立刻开始执行，有可能在mBinder被返回前就执行完毕了，这样有些回调会收不到。
-//        mHandler.postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                if(!mBleClientModel.isBtEnabled(BluetoothAdapter.getDefaultAdapter())){
-//                    enableBt();
-//                }
-//            }
-//        }, 500);
+        //4,检查蓝牙是否被打开了，如果没有，现在打开。
+        //为什么要500毫秒后再执行？这是为了保证mBinder对象被先返回给TgiBleManager
+        //如果立刻开始执行，有可能在mBinder被返回且设置好回调前就执行完毕了，这样有些回调会触发不了。
+        //至此1-4步完成了本机蓝牙的初始化。
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!mBleClientModel.isBtEnabled(BluetoothAdapter.getDefaultAdapter())) {
+                    enableBt();
+                }
+            }
+        }, 500);
         //2，先返回binder给TgiBleManager
         return mBinder;
     }
 
-//    /**
-//     * 打开蓝牙，相关结果会通过广播接收者{@link TgiBleService#mBtConnStatesReceiver}得知
-//     */
-//    private void enableBt() {
-//        Intent intent=new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-//        startActivity(intent);
-//    }
+    /**
+     * 打开蓝牙，相关结果会通过广播接收者{@link TgiBleService#mBtConnStatesReceiver}得知
+     */
+    private void enableBt() {
+        Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+    }
 
 
     //bindService 生命流程3
@@ -98,16 +102,26 @@ import android.support.annotation.Nullable;
     }
 
 
-     class TgiBleServiceBinder extends Binder {
+    class TgiBleServiceBinder extends Binder {
         //3，TgiBleManager端会先设置回调，以保证及时收到TgiBtEnableStatesReceiver返回的数据
-         void setCallBack(TgiBleServiceCallback callback) {
+        void setCallBack(TgiBleServiceCallback callback) {
             mTgiBleServiceCallback = callback;
         }
 
 
-//         void enableBt() {
-//            TgiBleService.this.enableBt();
-//        }
+        void enableBt() {
+            TgiBleService.this.enableBt();
+        }
+
+        void startScanDevice(TgiBleScanCallback callback){
+            mBleClientModel.startScanBtDevices(callback,mHandler);
+        }
+
+        void stopScanDevice(TgiBleScanCallback callback){
+            mBleClientModel.stopScanBtDevices(callback);
+        }
+
+
     }
 
     private class TgiBtEnableStatesReceiver extends BroadcastReceiver {
