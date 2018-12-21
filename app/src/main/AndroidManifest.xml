@@ -2,10 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="tgi.com.btlibrarydemo">
 
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:allowBackup="true"
@@ -21,8 +21,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".BleTestActivity"></activity>
-        <service android:name="tgi.com.librarybtmanager.TgiBleService"/>
+        <activity android:name=".BleTestActivity" />
+
+        <service android:name="tgi.com.librarybtmanager.TgiBleService" />
+
+        <activity android:name=".ScanDeviceActivity" />
+        <activity android:name=".ConnectDeviceActivity"></activity>
     </application>
 
 </manifest>

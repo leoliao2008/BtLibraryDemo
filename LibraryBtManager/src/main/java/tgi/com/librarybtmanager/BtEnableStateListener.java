@@ -9,7 +9,7 @@ package tgi.com.librarybtmanager;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
- class TgiBleServiceCallback {
+ class BtEnableStateListener {
      void onBtAvailabilityChanged(int previousState, int currentState) {
 
     }

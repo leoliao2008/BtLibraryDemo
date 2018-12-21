@@ -7,6 +7,7 @@ import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 
 import tgi.com.librarybtmanager.BleInitCallBack;
 import tgi.com.librarybtmanager.TgiBleManager;
@@ -48,5 +49,10 @@ public class BleTestActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         mTgiBleManager.stopBtService(this);
+    }
+
+    public void toNext(View view) {
+        ScanDeviceActivity.start(this);
+
     }
 }
