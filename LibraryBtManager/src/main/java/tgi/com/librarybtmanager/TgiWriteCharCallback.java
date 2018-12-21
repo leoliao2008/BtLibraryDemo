@@ -16,7 +16,7 @@ public class TgiWriteCharCallback {
 
     }
 
-    public void onWriteComplete(BluetoothGattCharacteristic characteristic) {
+    public void onWriteSuccess(BluetoothGattCharacteristic characteristic) {
 
     }
 }

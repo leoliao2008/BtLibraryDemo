@@ -16,8 +16,10 @@ import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
@@ -38,10 +40,13 @@ public class TgiBleService extends Service {
     private BtEnableStateListener mBtEnableStateListener;
     private DevicePairingStatesReceiver mPairingStatesReceiver;
     private DeviceParingStateListener mDeviceParingStateListener;
-    private BluetoothGatt mBluetoothGatt;
+    private BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
     private TgiWriteCharCallback mTgiWriteCharCallback;
+    private TgiReadCharCallback mTgiReadCharCallback;
     private Semaphore mWriteCharSwitch = new Semaphore(1);
+    private byte[] mValueToWrite;
+    private Semaphore mReadCharSwitch = new Semaphore(1);
 
 
     //bindService 生命流程1
@@ -201,14 +206,14 @@ public class TgiBleService extends Service {
             //连接蓝牙设备第二步：判断是否已经有连接好的，如果有，检查一下是否就是目标设备，
             //如果是，放弃当前操作；
             //如果不是，关闭之前的连接，重新开始新的连接。
-            if (mBluetoothGatt != null) {
-                String address = mBluetoothGatt.getDevice().getAddress();
+            if (mBtGatt != null) {
+                String address = mBtGatt.getDevice().getAddress();
                 if (address.equals(device.getAddress())) {
                     mConnectSwitch.release();
                     return;
                 } else {
-                    mBluetoothGatt.close();
-                    mBluetoothGatt = null;
+                    mBtGatt.close();
+                    mBtGatt = null;
                 }
             }
             checkBtBondedBeforeProceed(device, new Runnable() {
@@ -224,14 +229,14 @@ public class TgiBleService extends Service {
                                 public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                                     super.onConnectionStateChange(gatt, status, newState);
                                     if (newState == BluetoothGatt.STATE_CONNECTED) {
-                                        //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特征。
+                                        //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
                                         gatt.discoverServices();
                                     } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                                         //连接失败，退出。
                                         gatt.close();
                                         listener.onConnectFail("Fail to connect target device on connecting stage.");
-                                        listener.onConnectSessionEnds();
                                         mConnectSwitch.release();
+                                        listener.onConnectSessionEnds();
                                     }
                                 }
 
@@ -240,36 +245,59 @@ public class TgiBleService extends Service {
                                     super.onServicesDiscovered(gatt, status);
                                     if (status == BluetoothGatt.GATT_SUCCESS) {
                                         //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
-                                        mBluetoothGatt = gatt;
+                                        mBtGatt = gatt;
                                         listener.onConnect(device);
+                                        mConnectSwitch.release();
                                         listener.onConnectSessionEnds();
                                     } else if (status == BluetoothGatt.GATT_FAILURE) {
                                         //连接失败，退出。
                                         gatt.close();
                                         listener.onConnectFail("Target device is connected, but fails to discover services.");
-                                        listener.onConnectSessionEnds();
                                         mConnectSwitch.release();
+                                        listener.onConnectSessionEnds();
                                     }
                                 }
 
                                 @Override
                                 public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                                     super.onCharacteristicRead(gatt, characteristic, status);
+                                    //读取特性第四步：判断是否读取成功。
+                                    //todo 读取和写入的逻辑都有问题，如果在解锁后在回调中立刻重新读写，会造成冲突。
+                                    if(mTgiReadCharCallback!=null){
+                                        //先解锁，这样如果在后续回调中可以重新读取特性。否则因为未解锁，后续回调中无法立刻重新读取特性。
+                                        mReadCharSwitch.release();
+                                        if(status==BluetoothGatt.GATT_SUCCESS){
+                                            mTgiReadCharCallback.onCharRead(characteristic,characteristic.getValue());
+                                        }else {
+                                            mTgiReadCharCallback.onError("Target characteristic read fails.");
+                                        }
+                                        //读取特性第五步：释放内存。至此1-5步，读取特性流程结束。
+                                        mTgiReadCharCallback=null;
+                                    }
                                 }
 
                                 @Override
                                 public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                                     super.onCharacteristicWrite(gatt, characteristic, status);
                                     //写入特性第四步：判断是否写入成功。
-                                    if (mTgiWriteCharCallback != null) {
+                                    if (mTgiWriteCharCallback != null && mValueToWrite != null) {
+                                        //先解锁，这样如果在后续回调中可以重新写入特性。否则因为未解锁，后续回调中无法立刻重新写入特性。
+                                        mWriteCharSwitch.release();
                                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                                            mTgiWriteCharCallback.onWriteComplete(characteristic);
+                                            byte[] valueBeWritten = characteristic.getValue();
+                                            if (Arrays.equals(mValueToWrite, valueBeWritten)) {
+                                                mTgiWriteCharCallback.onWriteSuccess(characteristic);
+                                            } else {
+                                                mTgiWriteCharCallback.onWriteFailed("Data is not fully written.");
+                                            }
+
                                         } else {
                                             mTgiWriteCharCallback.onWriteFailed("Target characteristic write fails.");
                                         }
+                                        //写入特性第五步：释放内存。至此1-5步，写入特性流程结束。
+                                        mValueToWrite = null;
                                         mTgiWriteCharCallback = null;
-                                        //写入特性第五步：解锁。至此1-5步，写入特性流程结束。
-                                        mWriteCharSwitch.release();
+
                                     }
 
                                 }
@@ -277,11 +305,13 @@ public class TgiBleService extends Service {
                                 @Override
                                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                                     super.onCharacteristicChanged(gatt, characteristic);
+
                                 }
 
                                 @Override
                                 public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
                                     super.onDescriptorRead(gatt, descriptor, status);
+
                                 }
 
                                 @Override
@@ -303,9 +333,8 @@ public class TgiBleService extends Service {
                 public void run() {
                     //判断是否正在写入中，如果是，放弃操作。
                     if (mWriteCharSwitch.tryAcquire()) {
-                        mTgiWriteCharCallback = callback;
                         //写入特性第二步：检查对应的服务及特性是否存在
-                        BluetoothGattService service = mBluetoothGatt.getService(UUID.fromString(serviceUUID));
+                        BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
                         if (service == null) {
                             callback.onWriteFailed("Target service cannot be reached.");
                             mWriteCharSwitch.release();
@@ -318,11 +347,14 @@ public class TgiBleService extends Service {
                             return;
                         }
                         //写入特性第三步：正式写入
-                        boolean setValue = btChar.setValue(data);
-                        if (!setValue) {
-                            callback.onWriteFailed("Request value cannot be stored locally.");
+                        boolean isInitSuccess = mBtGatt.writeCharacteristic(btChar);
+                        if (!isInitSuccess) {
+                            callback.onWriteFailed("Write operation fails to initiate.");
                             mWriteCharSwitch.release();
+                            return;
                         }
+                        mValueToWrite = data;
+                        mTgiWriteCharCallback = callback;
                         //后续在BluetoothGattCallback的onCharacteristicWrite回调中进行。
                     }
                 }
@@ -332,11 +364,37 @@ public class TgiBleService extends Service {
         }
 
         //读取特性
-        void readChar(String serviceUUID, String charUUID, TgiReadCharCallback callback) throws
+        void readChar(final String serviceUUID, final String charUUID, final TgiReadCharCallback callback) throws
                 BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
+            //读取特性第一步：检查蓝牙状态是否正常，是否已经连接上
             checkBtConnectionBeforeProceed(new Runnable() {
                 @Override
                 public void run() {
+                    //如果当前正在读取特性，放弃本次操作
+                    if (mReadCharSwitch.tryAcquire()) {
+                        //读取特性第二步：检查对应的服务及特性是否存在
+                        BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
+                        if (service == null) {
+                            callback.onError("Target service cannot be reached.");
+                            mReadCharSwitch.release();
+                            return;
+                        }
+                        BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
+                        if(btChar==null){
+                            callback.onError("Target characteristic cannot be reached.");
+                            mReadCharSwitch.release();
+                            return;
+                        }
+                        //读取特性第三步：正式开始读取
+                        boolean isInitSuccess = mBtGatt.readCharacteristic(btChar);
+                        if(!isInitSuccess){
+                            callback.onError("Read operation fails to initiate.");
+                            mReadCharSwitch.release();
+                            return;
+                        }
+                        mTgiReadCharCallback=callback;
+                        //后续在BluetoothGattCallback的onCharacteristicRead回调中进行。
+                    }
 
                 }
             });
@@ -345,10 +403,10 @@ public class TgiBleService extends Service {
 
     private void checkBtConnectionBeforeProceed(Runnable onProceed)
             throws BtNotConnectedYetException, BtNotBondedException, BtNotEnabledException {
-        if (mBluetoothGatt == null) {
+        if (mBtGatt == null) {
             throw new BtNotConnectedYetException();
         }
-        checkBtBondedBeforeProceed(mBluetoothGatt.getDevice(), onProceed);
+        checkBtBondedBeforeProceed(mBtGatt.getDevice(), onProceed);
     }
 
     @SuppressLint("MissingPermission")
