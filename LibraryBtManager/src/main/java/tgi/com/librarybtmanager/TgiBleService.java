@@ -295,8 +295,8 @@ public class TgiBleService extends Service {
         }
 
         //写入特性
-        void writeChar(final byte[] data, final String serviceUUID, final String charUUID, final TgiWriteCharCallback callback) throws BtNotConnectedYetException,
-                BtNotEnabledException, BtNotBondedException {
+        void writeChar(final byte[] data, final String serviceUUID, final String charUUID, final TgiWriteCharCallback callback)
+                throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
             //写入特性第一步：检查蓝牙模块状态是否正常，是否已经连接上
             checkBtConnectionBeforeProceed(new Runnable() {
                 @Override
@@ -352,7 +352,8 @@ public class TgiBleService extends Service {
     }
 
     @SuppressLint("MissingPermission")
-    private void checkBtBondedBeforeProceed(BluetoothDevice device, Runnable onProceed) throws BtNotBondedException, BtNotEnabledException {
+    private void checkBtBondedBeforeProceed(BluetoothDevice device, Runnable onProceed)
+            throws BtNotBondedException, BtNotEnabledException {
 
         if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
             throw new BtNotBondedException();
