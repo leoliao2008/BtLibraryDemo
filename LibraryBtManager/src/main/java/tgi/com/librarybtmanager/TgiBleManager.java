@@ -4,9 +4,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -15,8 +12,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.RequiresApi;
-
-import java.util.UUID;
 
 /**
  * <p><b>Author:</b></p>
@@ -102,20 +97,9 @@ public class TgiBleManager {
         mServiceConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
-                //6，返回一个binder，用来操纵service
+                //6，返回一个binder，用来操纵service。
+                //1-6流程到此完结。以上是本机蓝牙初始化的工作。
                 mTgiBleServiceBinder = (TgiBleService.TgiBleServiceBinder) service;
-                //7，在binder中设置一个回调，用来接收service返回的有用数据
-                mTgiBleServiceBinder.setBtEnableStateListener(new BtEnableStateListener() {
-                    //8，当在回调中发现本机蓝牙模块关闭时，尝试重新打开。1-8流程到此完结。以上是本机蓝牙初始化的工作。
-                    @Override
-                    public void onBtAvailabilityChanged(int previousState, int currentState) {
-                        super.onBtAvailabilityChanged(previousState, currentState);
-                        LogUtils.showLog("onBtAvailabilityChanged pre:" + previousState + " current:" + currentState);
-                        if (currentState == BluetoothAdapter.STATE_OFF) {
-                            mTgiBleServiceBinder.enableBt();
-                        }
-                    }
-                });
             }
 
             @Override
@@ -194,10 +178,17 @@ public class TgiBleManager {
     }
 
     //读取特性
-    public void readCharacteristic(String serviceUUID,String charUUID,TgiReadCharCallback callback){
+    public void readCharacteristic(String serviceUUID,String charUUID,TgiReadCharCallback callback)
+            throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
         mTgiBleServiceBinder.readChar(serviceUUID,charUUID,callback);
     }
 
+    //注册/取消通知
+    public void toggleNotification(String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
+            throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
+        mTgiBleServiceBinder.toggleNotification(serviceUUID,charUUID,descUUID,isToTurnOn,callback);
+        //想办法在service中获取新char值
+    }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     public void onRequestBtPermissionsResult(

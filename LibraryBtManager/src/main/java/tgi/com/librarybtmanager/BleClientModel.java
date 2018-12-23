@@ -37,12 +37,12 @@ class BleClientModel {
     }
 
     @SuppressLint("MissingPermission")
-    public boolean pairDevice(BluetoothDevice device) {
+     boolean pairDevice(BluetoothDevice device) {
         return device.createBond();
     }
 
 
-    public BluetoothDevice getDeviceByAddress(String deviceAddress) {
+     BluetoothDevice getDeviceByAddress(String deviceAddress) {
         return BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
     }
 }

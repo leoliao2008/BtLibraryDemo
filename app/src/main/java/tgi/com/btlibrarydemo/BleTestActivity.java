@@ -31,7 +31,7 @@ public class BleTestActivity extends AppCompatActivity {
             @Override
             public void onError(String msg) {
                 super.onError(msg);
-                Log.e("onError", msg);
+                Log.e("onFailToPair", msg);
             }
         });
     }

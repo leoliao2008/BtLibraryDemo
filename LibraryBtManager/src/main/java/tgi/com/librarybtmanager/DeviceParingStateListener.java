@@ -16,11 +16,15 @@ public class DeviceParingStateListener {
 
     }
 
-    public void onDevicePaired(BluetoothDevice device, int previousState, int currentState){
+    public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState){
 
     }
 
     public void onParingSessionEnd(){
+
+    }
+
+    public void onFailToPair(String errorMsg){
 
     }
 }

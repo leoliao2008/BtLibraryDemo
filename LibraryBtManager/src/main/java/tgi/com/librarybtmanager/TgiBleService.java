@@ -16,10 +16,8 @@ import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
-import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
@@ -36,17 +34,11 @@ public class TgiBleService extends Service {
     private BleClientModel mBleClientModel;
     private TgiBtEnableStatesReceiver mBtConnStatesReceiver;
     private int mBtEnableState;
-    private Handler mHandler;
-    private BtEnableStateListener mBtEnableStateListener;
     private DevicePairingStatesReceiver mPairingStatesReceiver;
     private DeviceParingStateListener mDeviceParingStateListener;
     private BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
-    private TgiWriteCharCallback mTgiWriteCharCallback;
-    private TgiReadCharCallback mTgiReadCharCallback;
-    private Semaphore mWriteCharSwitch = new Semaphore(1);
-    private byte[] mValueToWrite;
-    private Semaphore mReadCharSwitch = new Semaphore(1);
+    private TgiBtGattCallback mTgiBtGattCallback;
 
 
     //bindService 生命流程1
@@ -57,8 +49,7 @@ public class TgiBleService extends Service {
         LogUtils.showLog("service is created.");
         mBleClientModel = new BleClientModel();
         mBtEnableState = mBleClientModel.isBtEnabled() ? BluetoothAdapter.STATE_ON : BluetoothAdapter.STATE_OFF;
-        mHandler = new Handler();
-        //1,监听本机蓝牙打开状态
+        //本机蓝牙初始化第一步：监听本机蓝牙打开状态
         registerReceivers();
     }
 
@@ -85,19 +76,11 @@ public class TgiBleService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         LogUtils.showLog("service is bounded.");
-        //4,检查蓝牙是否被打开了，如果没有，现在打开。
-        //为什么要500毫秒后再执行？这是为了保证mBinder对象被先返回给TgiBleManager
-        //如果立刻开始执行，有可能在mBinder被返回且设置好回调前就执行完毕了，这样有些回调会触发不了。
-        //至此1-4步完成了本机蓝牙的初始化。
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
-                    enableBt();
-                }
-            }
-        }, 500);
-        //2，先返回binder给TgiBleManager
+        //本机蓝牙初始化第四步：检查蓝牙是否被打开了，如果没有，现在打开。
+        if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
+            enableBt();
+        }
+        //本机蓝牙初始化第二步：先返回binder给TgiBleManager
         return new TgiBleServiceBinder();
     }
 
@@ -123,6 +106,7 @@ public class TgiBleService extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceivers();
+        mTgiBtGattCallback.clear();
         LogUtils.showLog("service is destroyed.");
     }
 
@@ -140,15 +124,6 @@ public class TgiBleService extends Service {
 
 
     class TgiBleServiceBinder extends Binder {
-        //3，TgiBleManager端会先设置回调，以保证及时收到TgiBtEnableStatesReceiver返回的数据
-        void setBtEnableStateListener(BtEnableStateListener callback) {
-            mBtEnableStateListener = callback;
-        }
-
-
-        void enableBt() {
-            TgiBleService.this.enableBt();
-        }
 
         void startScanDevice(final TgiBleScanCallback callback) throws BtNotEnabledException {
             checkBtEnableBeforeProceed(new Runnable() {
@@ -179,19 +154,30 @@ public class TgiBleService extends Service {
                     int bondState = device.getBondState();
                     if (bondState == BluetoothDevice.BOND_BONDED) {
                         listener.onParingSessionBegin();
-                        listener.onDevicePaired(device, bondState, bondState);
+                        listener.onDevicePairingStateChanged(device, bondState, bondState);
                         listener.onParingSessionEnd();
                         return;
                     }
-                    //蓝牙配对第2步：注册广播接受者监听配对结果
+
+                    //蓝牙配对第2步：自定义开始的准备工作（如显示进度圈等）
+                    listener.onParingSessionBegin();
+                    //蓝牙配对第3步：注册广播接受者监听配对结果
                     mDeviceParingStateListener = listener;
                     IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
                     mPairingStatesReceiver = new DevicePairingStatesReceiver();
                     registerReceiver(mPairingStatesReceiver, intentFilter);
-                    //蓝牙配对第3步：自定义开始的准备工作（如显示进度圈等）
-                    listener.onParingSessionBegin();
-                    //蓝牙配对第4步：开始正式配对
-                    mBleClientModel.pairDevice(device);
+                    //蓝牙配对第4步：开始正式配对,配对结果通过广播接受者知悉。
+                    boolean isInitSuccess = mBleClientModel.pairDevice(device);
+                    if (!isInitSuccess) {
+                        //如果启动配对失败，这里报错，并且释放资源。
+                        listener.onFailToPair("Fail to initiate device pairing.");
+                        listener.onParingSessionEnd();
+                        mDeviceParingStateListener = null;
+                        if (mPairingStatesReceiver != null) {
+                            unregisterReceiver(mPairingStatesReceiver);
+                            mPairingStatesReceiver = null;
+                        }
+                    }
                 }
             });
         }
@@ -216,6 +202,61 @@ public class TgiBleService extends Service {
                     mBtGatt = null;
                 }
             }
+            //这个回调用来监听蓝牙设备连接后的各种情况
+            BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
+                @Override
+                public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                    super.onConnectionStateChange(gatt, status, newState);
+                    if (newState == BluetoothGatt.STATE_CONNECTED) {
+                        //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
+                        gatt.discoverServices();
+                    } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                        //连接失败，退出。
+                        gatt.close();
+                        listener.onConnectFail("Fail to connect target device on connecting stage.");
+                        mConnectSwitch.release();
+                        listener.onConnectSessionEnds();
+                    }
+                }
+
+                @Override
+                public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                    super.onServicesDiscovered(gatt, status);
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
+                        mBtGatt = gatt;
+                        listener.onConnect(gatt.getDevice());
+                        mConnectSwitch.release();
+                        listener.onConnectSessionEnds();
+                    } else if (status == BluetoothGatt.GATT_FAILURE) {
+                        //连接失败，退出。
+                        gatt.close();
+                        listener.onConnectFail("Target device is connected, but fails to discover services.");
+                        mConnectSwitch.release();
+                        listener.onConnectSessionEnds();
+                    }
+                }
+
+                @Override
+                public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                    super.onCharacteristicChanged(gatt, characteristic);
+                    //注册/取消注册通知第四步：注册好通知后，后续数据的更新从这里广播出去。由此1-4步，注册/取消注册通知流程结束。
+                    String address = gatt.getDevice().getAddress();
+                    String serviceUUID = characteristic.getService().getUuid().toString();
+                    String charUUID = characteristic.getUuid().toString();
+                    byte[] updateValue = characteristic.getValue();
+                    TgiBtChar tgiBtChar = new TgiBtChar();
+                    tgiBtChar.setDeviceAddress(address);
+                    tgiBtChar.setServiceUUID(serviceUUID);
+                    tgiBtChar.setCharUUID(charUUID);
+                    tgiBtChar.setData(updateValue);
+                    Intent intent = new Intent(Constants.ACTION_BT_CHAR_CHANGED);
+                    intent.putExtra(Constants.KEY_TGI_BT_CHAR, tgiBtChar);
+                    sendBroadcast(intent);
+
+                }
+            };
+            mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
             checkBtBondedBeforeProceed(device, new Runnable() {
                 @Override
                 public void run() {
@@ -223,103 +264,8 @@ public class TgiBleService extends Service {
                     device.connectGatt(
                             getApplicationContext(),
                             false,
-                            //BluetoothGattCallback很重要，不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
-                            new BluetoothGattCallback() {
-                                @Override
-                                public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-                                    super.onConnectionStateChange(gatt, status, newState);
-                                    if (newState == BluetoothGatt.STATE_CONNECTED) {
-                                        //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
-                                        gatt.discoverServices();
-                                    } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                                        //连接失败，退出。
-                                        gatt.close();
-                                        listener.onConnectFail("Fail to connect target device on connecting stage.");
-                                        mConnectSwitch.release();
-                                        listener.onConnectSessionEnds();
-                                    }
-                                }
-
-                                @Override
-                                public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-                                    super.onServicesDiscovered(gatt, status);
-                                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                                        //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
-                                        mBtGatt = gatt;
-                                        listener.onConnect(device);
-                                        mConnectSwitch.release();
-                                        listener.onConnectSessionEnds();
-                                    } else if (status == BluetoothGatt.GATT_FAILURE) {
-                                        //连接失败，退出。
-                                        gatt.close();
-                                        listener.onConnectFail("Target device is connected, but fails to discover services.");
-                                        mConnectSwitch.release();
-                                        listener.onConnectSessionEnds();
-                                    }
-                                }
-
-                                @Override
-                                public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-                                    super.onCharacteristicRead(gatt, characteristic, status);
-                                    //读取特性第四步：判断是否读取成功。
-                                    //todo 读取和写入的逻辑都有问题，如果在解锁后在回调中立刻重新读写，会造成冲突。
-                                    if(mTgiReadCharCallback!=null){
-                                        //先解锁，这样如果在后续回调中可以重新读取特性。否则因为未解锁，后续回调中无法立刻重新读取特性。
-                                        mReadCharSwitch.release();
-                                        if(status==BluetoothGatt.GATT_SUCCESS){
-                                            mTgiReadCharCallback.onCharRead(characteristic,characteristic.getValue());
-                                        }else {
-                                            mTgiReadCharCallback.onError("Target characteristic read fails.");
-                                        }
-                                        //读取特性第五步：释放内存。至此1-5步，读取特性流程结束。
-                                        mTgiReadCharCallback=null;
-                                    }
-                                }
-
-                                @Override
-                                public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-                                    super.onCharacteristicWrite(gatt, characteristic, status);
-                                    //写入特性第四步：判断是否写入成功。
-                                    if (mTgiWriteCharCallback != null && mValueToWrite != null) {
-                                        //先解锁，这样如果在后续回调中可以重新写入特性。否则因为未解锁，后续回调中无法立刻重新写入特性。
-                                        mWriteCharSwitch.release();
-                                        if (status == BluetoothGatt.GATT_SUCCESS) {
-                                            byte[] valueBeWritten = characteristic.getValue();
-                                            if (Arrays.equals(mValueToWrite, valueBeWritten)) {
-                                                mTgiWriteCharCallback.onWriteSuccess(characteristic);
-                                            } else {
-                                                mTgiWriteCharCallback.onWriteFailed("Data is not fully written.");
-                                            }
-
-                                        } else {
-                                            mTgiWriteCharCallback.onWriteFailed("Target characteristic write fails.");
-                                        }
-                                        //写入特性第五步：释放内存。至此1-5步，写入特性流程结束。
-                                        mValueToWrite = null;
-                                        mTgiWriteCharCallback = null;
-
-                                    }
-
-                                }
-
-                                @Override
-                                public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                                    super.onCharacteristicChanged(gatt, characteristic);
-
-                                }
-
-                                @Override
-                                public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-                                    super.onDescriptorRead(gatt, descriptor, status);
-
-                                }
-
-                                @Override
-                                public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-                                    super.onDescriptorWrite(gatt, descriptor, status);
-                                }
-                            }
-                    );
+                            //mTgiBtGattCallback，不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
+                            mTgiBtGattCallback);
                 }
             });
         }
@@ -331,32 +277,24 @@ public class TgiBleService extends Service {
             checkBtConnectionBeforeProceed(new Runnable() {
                 @Override
                 public void run() {
-                    //判断是否正在写入中，如果是，放弃操作。
-                    if (mWriteCharSwitch.tryAcquire()) {
-                        //写入特性第二步：检查对应的服务及特性是否存在
-                        BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
-                        if (service == null) {
-                            callback.onWriteFailed("Target service cannot be reached.");
-                            mWriteCharSwitch.release();
-                            return;
-                        }
-                        BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
-                        if (btChar == null) {
-                            callback.onWriteFailed("Target characteristic cannot be reached.");
-                            mWriteCharSwitch.release();
-                            return;
-                        }
-                        //写入特性第三步：正式写入
-                        boolean isInitSuccess = mBtGatt.writeCharacteristic(btChar);
-                        if (!isInitSuccess) {
-                            callback.onWriteFailed("Write operation fails to initiate.");
-                            mWriteCharSwitch.release();
-                            return;
-                        }
-                        mValueToWrite = data;
-                        mTgiWriteCharCallback = callback;
-                        //后续在BluetoothGattCallback的onCharacteristicWrite回调中进行。
+                    //写入特性第二步：检查对应的服务及特性是否存在
+                    BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
+                    if (service == null) {
+                        callback.onWriteFailed("Target service cannot be reached.");
+                        return;
                     }
+                    BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
+                    if (btChar == null) {
+                        callback.onWriteFailed("Target characteristic cannot be reached.");
+                        return;
+                    }
+                    //写入特性第三步：正式写入
+                    TgiWriteCharSession session = new TgiWriteCharSession(
+                            mBtGatt,
+                            btChar,
+                            mTgiBtGattCallback);
+                    session.write(data, callback);
+                    //后续在TgiBtGattCallback的onCharacteristicWrite回调中进行。
                 }
             });
 
@@ -370,34 +308,68 @@ public class TgiBleService extends Service {
             checkBtConnectionBeforeProceed(new Runnable() {
                 @Override
                 public void run() {
-                    //如果当前正在读取特性，放弃本次操作
-                    if (mReadCharSwitch.tryAcquire()) {
-                        //读取特性第二步：检查对应的服务及特性是否存在
-                        BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
-                        if (service == null) {
-                            callback.onError("Target service cannot be reached.");
-                            mReadCharSwitch.release();
-                            return;
-                        }
-                        BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
-                        if(btChar==null){
-                            callback.onError("Target characteristic cannot be reached.");
-                            mReadCharSwitch.release();
-                            return;
-                        }
-                        //读取特性第三步：正式开始读取
-                        boolean isInitSuccess = mBtGatt.readCharacteristic(btChar);
-                        if(!isInitSuccess){
-                            callback.onError("Read operation fails to initiate.");
-                            mReadCharSwitch.release();
-                            return;
-                        }
-                        mTgiReadCharCallback=callback;
-                        //后续在BluetoothGattCallback的onCharacteristicRead回调中进行。
+                    //读取特性第二步：检查对应的服务及特性是否存在
+                    BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
+                    if (service == null) {
+                        callback.onError("Target service cannot be reached.");
+                        return;
                     }
+                    BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
+                    if (btChar == null) {
+                        callback.onError("Target characteristic cannot be reached.");
+                        return;
+                    }
+                    //读取特性第三步：正式开始读取
+                    TgiReadCharSession session = new TgiReadCharSession(
+                            mBtGatt,
+                            btChar,
+                            mTgiBtGattCallback);
+                    session.read(callback);
+                    //后续在TgiBtGattCallback的onCharacteristicRead回调中进行。
 
                 }
             });
+        }
+
+        //注册/取消注册通知
+        void toggleNotification(final String serviceUUID, final String charUUID, final String descUUID,
+                                final boolean isToTurnOn, final TgiToggleNotificationCallback callback)
+                throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
+            //注册/取消注册通知第一步：检查蓝牙状态是否正常，是否已经连接上
+            checkBtConnectionBeforeProceed(new Runnable() {
+                @Override
+                public void run() {
+                    //注册/取消注册通知第二步：检查对应的服务，特性和描述是否存在
+                    BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
+                    if (service == null) {
+                        callback.onError("Target service cannot be reached.");
+                        return;
+                    }
+
+                    BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
+                    if (btChar == null) {
+                        callback.onError("Target characteristic cannot be reached.");
+                        return;
+                    }
+
+                    BluetoothGattDescriptor btDesc = btChar.getDescriptor(UUID.fromString(descUUID));
+                    callback.onError("Target descriptor cannot be reached.");
+                    if (btDesc == null) {
+                        return;
+                    }
+
+                    //注册/取消注册通知第三步：正式操作注册/取消注册，后续在TgiBtGattCallback的onDescriptorWrite回调中进行。
+                    TgiToggleNotificationSession session = new TgiToggleNotificationSession(
+                            mBtGatt,
+                            btDesc,
+                            isToTurnOn,
+                            mTgiBtGattCallback);
+
+                    session.start(callback);
+
+                }
+            });
+
         }
     }
 
@@ -435,12 +407,11 @@ public class TgiBleService extends Service {
             //     * {@link #STATE_TURNING_ON},
             //     * {@link #STATE_ON},
             //     * {@link #STATE_TURNING_OFF},
+            //本机蓝牙 初始化第五步：实时监听蓝牙启动状态，如果发现被关闭了，将在TgiBleManager中重新打开。
+            //至此1-5步完成了本机蓝牙的初始化。
             mBtEnableState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
-            int previous = intent.getIntExtra(BluetoothAdapter.EXTRA_PREVIOUS_STATE, -1);
-            if (mBtEnableState != -1 && previous != -1) {
-                if (mBtEnableStateListener != null) {
-                    mBtEnableStateListener.onBtAvailabilityChanged(previous, mBtEnableState);
-                }
+            if(mBtEnableState==BluetoothAdapter.STATE_OFF){
+                enableBt();
             }
         }
     }
@@ -459,7 +430,7 @@ public class TgiBleService extends Service {
             int previousState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1);
             if (mDeviceParingStateListener != null) {
                 //蓝牙配对第5步：获取配对结果
-                mDeviceParingStateListener.onDevicePaired(device, previousState, currentState);
+                mDeviceParingStateListener.onDevicePairingStateChanged(device, previousState, currentState);
                 //当最新结果为以下两种时，表示配对结果已经确定了，流程结束。
                 if (currentState == BluetoothDevice.BOND_BONDED || currentState == BluetoothDevice.BOND_NONE) {
                     mDeviceParingStateListener.onParingSessionEnd();

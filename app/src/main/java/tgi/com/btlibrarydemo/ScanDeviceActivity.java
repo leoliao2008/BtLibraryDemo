@@ -74,8 +74,8 @@ public class ScanDeviceActivity extends AppCompatActivity {
                                 }
 
                                 @Override
-                                public void onDevicePaired(BluetoothDevice device, int previousState, int currentState) {
-                                    super.onDevicePaired(device, previousState, currentState);
+                                public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
+                                    super.onDevicePairingStateChanged(device, previousState, currentState);
                                     switch (currentState) {
                                         case BluetoothDevice.BOND_NONE:
                                             showLog("device "+device.getAddress()+" is not bonded.");
