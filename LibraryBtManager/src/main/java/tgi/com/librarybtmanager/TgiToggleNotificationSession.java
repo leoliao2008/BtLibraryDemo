@@ -26,6 +26,7 @@ public class TgiToggleNotificationSession {
             boolean isToTurnOn,
             TgiBtGattCallback tgiBtGattCallback) {
 
+
         mBluetoothGatt = bluetoothGatt;
         mDescriptor = descriptor;
         mBtGattCallback = tgiBtGattCallback;
