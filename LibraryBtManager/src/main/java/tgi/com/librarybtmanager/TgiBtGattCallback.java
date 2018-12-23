@@ -4,10 +4,15 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.hardware.camera2.CaptureRequest;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Author: Administrator
@@ -20,6 +25,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     private ArrayList<TgiReadCharSession> mReadSessions = new ArrayList<>();
     private ArrayList<TgiToggleNotificationSession> mToggleNotificationSessions = new ArrayList<>();
     private BluetoothGattCallback mGattCallback;
+    private HashMap<String, WeakReference<TgiToggleNotificationSession>> mCharChangedListeners = new HashMap<>();
 
     TgiBtGattCallback(BluetoothGattCallback gattCallback) {
         mGattCallback = gattCallback;
@@ -105,6 +111,14 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                     } else {
                         session.getTgiToggleNotificationCallback().onError("The value of descriptor dose not match the target value.");
                     }
+                    //更新map内容，这是为了onCharacteristicChanged中注册了通知的char的值发生变化时，用来传递变化的数据。
+                    String key = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), descriptor.getCharacteristic());
+                    if (toTurnOn) {
+                        mCharChangedListeners.put(key, new WeakReference<TgiToggleNotificationSession>(session));
+                    } else {
+                        mCharChangedListeners.remove(key);
+                        session.close();
+                    }
                 } else {
                     StringBuilder sb = new StringBuilder();
                     sb.append("Fails to ");
@@ -115,7 +129,6 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                     }
                     session.getTgiToggleNotificationCallback().onError(sb.toString());
                 }
-                session.close();
                 iterator.remove();
                 break;
             }
@@ -125,13 +138,31 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     @Override
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
-        mGattCallback.onCharacteristicChanged(gatt,characteristic);
+        //在mCharChangedListeners根据UUID找到之前注册通知的回调，逐个返回最新数据。
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
+        //弱引用可以防止内存泄露
+        Iterator<Map.Entry<String, WeakReference<TgiToggleNotificationSession>>> iterator = mCharChangedListeners.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, WeakReference<TgiToggleNotificationSession>> next = iterator.next();
+            String key = next.getKey();
+            if (key.equals(uuid)) {
+                TgiToggleNotificationSession session = next.getValue().get();
+                if (session != null) {
+                    session.getTgiToggleNotificationCallback().onCharChanged(gatt, characteristic);
+                }
+            }
+        }
     }
 
     void registerWriteSession(TgiWriteCharSession tgiWriteCharSession) {
         if (!mWriteSessions.contains(tgiWriteCharSession)) {
             mWriteSessions.add(tgiWriteCharSession);
         }
+    }
+
+    void unRegisterWriteSession(TgiWriteCharSession session) {
+        mWriteSessions.remove(session);
+
     }
 
     void registerReadSession(TgiReadCharSession tgiReadCharSession) {
@@ -141,15 +172,27 @@ class TgiBtGattCallback extends BluetoothGattCallback {
 
     }
 
+    void unRegisterReadSession(TgiReadCharSession session) {
+        mReadSessions.remove(session);
+    }
+
     void registerToggleNotificationSession(TgiToggleNotificationSession tgiToggleNotificationSession) {
         if (!mToggleNotificationSessions.contains(tgiToggleNotificationSession)) {
             mToggleNotificationSessions.add(tgiToggleNotificationSession);
         }
     }
 
+    void unRegisterToggleNotificationSession(TgiToggleNotificationSession session) {
+        mToggleNotificationSessions.remove(session);
+    }
+
     void clear() {
         mWriteSessions.clear();
         mReadSessions.clear();
         mToggleNotificationSessions.clear();
+        mCharChangedListeners.clear();
     }
+
+
+
 }

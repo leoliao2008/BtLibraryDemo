@@ -1,5 +1,7 @@
 package tgi.com.librarybtmanager;
 
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
 /**
@@ -14,6 +16,10 @@ public class TgiToggleNotificationCallback {
     }
 
     public void onToggleNotificationSuccess(BluetoothGattDescriptor descriptor) {
+
+    }
+
+    public void onCharChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
 
     }
 }

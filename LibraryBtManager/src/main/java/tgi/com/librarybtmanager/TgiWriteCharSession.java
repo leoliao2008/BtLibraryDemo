@@ -36,14 +36,17 @@ public class TgiWriteCharSession {
             callback.onWriteFailed("Fail to set data to local characteristic.");
             return;
         }
-        boolean isInitSuccess = mBluetoothGatt.writeCharacteristic(mBtChar);
-        if (!isInitSuccess) {
-            callback.onWriteFailed("Write operation fails to initiate.");
-            return;
-        }
         mWriteContent = data;
         mTgiWriteCharCallback = callback;
         mBtGattCallback.registerWriteSession(this);
+        boolean isInitSuccess = mBluetoothGatt.writeCharacteristic(mBtChar);
+        //如果一开始就无法启动写入，则直接取消操作，释放资源。
+        if (!isInitSuccess) {
+            callback.onWriteFailed("Write operation fails to initiate.");
+            mBtGattCallback.unRegisterWriteSession(this);
+            close();
+        }
+
     }
 
     String getSessionUUID() {

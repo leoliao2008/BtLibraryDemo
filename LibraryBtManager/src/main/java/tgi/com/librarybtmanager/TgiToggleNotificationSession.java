@@ -1,6 +1,7 @@
 package tgi.com.librarybtmanager;
 
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
 import java.util.Objects;
@@ -34,9 +35,7 @@ public class TgiToggleNotificationSession {
 
 
     void start(TgiToggleNotificationCallback callback) {
-        boolean isInitSuccess = mBluetoothGatt.setCharacteristicNotification(
-                mDescriptor.getCharacteristic(),
-                true);
+        boolean isInitSuccess = mBluetoothGatt.setCharacteristicNotification(mDescriptor.getCharacteristic(), mIsToTurnOn);
         if (!isInitSuccess) {
             callback.onError("Target characteristic value cannot be set.");
             return;
@@ -51,13 +50,16 @@ public class TgiToggleNotificationSession {
             callback.onError("Target descriptor value cannot be set.");
             return;
         }
-        isInitSuccess = mBluetoothGatt.writeDescriptor(mDescriptor);
-        if (!isInitSuccess) {
-            callback.onError("Target descriptor cannot be written into characteristic.");
-            return;
-        }
         mTgiToggleNotificationCallback = callback;
         mBtGattCallback.registerToggleNotificationSession(this);
+        isInitSuccess = mBluetoothGatt.writeDescriptor(mDescriptor);
+        //如果一开始就无法启动流程，则直接结束，释放资源。
+        if (!isInitSuccess) {
+            callback.onError("Target descriptor cannot be written into characteristic.");
+            mBtGattCallback.unRegisterToggleNotificationSession(this);
+            close();
+        }
+
     }
 
     String getSessionUUID() {

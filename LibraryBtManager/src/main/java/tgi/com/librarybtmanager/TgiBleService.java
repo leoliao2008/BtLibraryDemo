@@ -14,7 +14,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
@@ -236,25 +235,6 @@ public class TgiBleService extends Service {
                         listener.onConnectSessionEnds();
                     }
                 }
-
-                @Override
-                public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                    super.onCharacteristicChanged(gatt, characteristic);
-                    //注册/取消注册通知第四步：注册好通知后，后续数据的更新从这里广播出去。由此1-4步，注册/取消注册通知流程结束。
-                    String address = gatt.getDevice().getAddress();
-                    String serviceUUID = characteristic.getService().getUuid().toString();
-                    String charUUID = characteristic.getUuid().toString();
-                    byte[] updateValue = characteristic.getValue();
-                    TgiBtChar tgiBtChar = new TgiBtChar();
-                    tgiBtChar.setDeviceAddress(address);
-                    tgiBtChar.setServiceUUID(serviceUUID);
-                    tgiBtChar.setCharUUID(charUUID);
-                    tgiBtChar.setData(updateValue);
-                    Intent intent = new Intent(Constants.ACTION_BT_CHAR_CHANGED);
-                    intent.putExtra(Constants.KEY_TGI_BT_CHAR, tgiBtChar);
-                    sendBroadcast(intent);
-
-                }
             };
             mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
             checkBtBondedBeforeProceed(device, new Runnable() {
@@ -359,6 +339,7 @@ public class TgiBleService extends Service {
                     }
 
                     //注册/取消注册通知第三步：正式操作注册/取消注册，后续在TgiBtGattCallback的onDescriptorWrite回调中进行。
+                    //至此1-3步完成流程。
                     TgiToggleNotificationSession session = new TgiToggleNotificationSession(
                             mBtGatt,
                             btDesc,
@@ -407,7 +388,7 @@ public class TgiBleService extends Service {
             //     * {@link #STATE_TURNING_ON},
             //     * {@link #STATE_ON},
             //     * {@link #STATE_TURNING_OFF},
-            //本机蓝牙 初始化第五步：实时监听蓝牙启动状态，如果发现被关闭了，将在TgiBleManager中重新打开。
+            //本机蓝牙 初始化第五步：实时监听蓝牙启动状态，如果发现被关闭了，将重新打开。
             //至此1-5步完成了本机蓝牙的初始化。
             mBtEnableState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
             if(mBtEnableState==BluetoothAdapter.STATE_OFF){

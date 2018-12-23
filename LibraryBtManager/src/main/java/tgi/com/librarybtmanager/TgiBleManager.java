@@ -184,10 +184,9 @@ public class TgiBleManager {
     }
 
     //注册/取消通知
-    public void toggleNotification(String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
+    public void toggleNotification(Activity context,String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
         mTgiBleServiceBinder.toggleNotification(serviceUUID,charUUID,descUUID,isToTurnOn,callback);
-        //想办法在service中获取新char值
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
