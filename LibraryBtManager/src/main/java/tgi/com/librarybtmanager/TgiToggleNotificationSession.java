@@ -25,8 +25,6 @@ public class TgiToggleNotificationSession {
             BluetoothGattDescriptor descriptor,
             boolean isToTurnOn,
             TgiBtGattCallback tgiBtGattCallback) {
-
-
         mBluetoothGatt = bluetoothGatt;
         mDescriptor = descriptor;
         mBtGattCallback = tgiBtGattCallback;
@@ -93,7 +91,6 @@ public class TgiToggleNotificationSession {
     public int hashCode() {
         return Objects.hash(mSessionUUID);
     }
-
 
 
 }
