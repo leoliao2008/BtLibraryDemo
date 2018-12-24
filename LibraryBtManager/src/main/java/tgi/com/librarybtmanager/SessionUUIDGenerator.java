@@ -21,8 +21,6 @@ class SessionUUIDGenerator {
                 .append(btChar.getService().getUuid().toString())
                 .append("-")
                 .append(btChar.getUuid().toString())
-                .append("-")
-                .append(SystemClock.currentThreadTimeMillis())
                 .toString();
     }
 
@@ -34,8 +32,6 @@ class SessionUUIDGenerator {
                 .append(descriptor.getCharacteristic().getUuid().toString())
                 .append("-")
                 .append(descriptor.getUuid().toString())
-                .append("-")
-                .append(SystemClock.currentThreadTimeMillis())
                 .toString();
     }
 }

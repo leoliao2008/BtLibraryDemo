@@ -85,7 +85,7 @@ public class TgiBleManager {
             }
             return;
         }
-        //3，打开蓝牙后台服务，在服务中进行后续操作
+        //3，打开蓝牙后台服务
         startBtService(activity);
     }
 
@@ -100,6 +100,7 @@ public class TgiBleManager {
                 //6，返回一个binder，用来操纵service。
                 //1-6流程到此完结。以上是本机蓝牙初始化的工作。
                 mTgiBleServiceBinder = (TgiBleService.TgiBleServiceBinder) service;
+                mBleInitCallBack.onInitSuccess();
             }
 
             @Override
@@ -113,6 +114,10 @@ public class TgiBleManager {
                 mServiceConnection,
                 Context.BIND_AUTO_CREATE
         );
+        //如果没有粘结成功，返回相关信息方便debug。
+        if(isSuccess){
+            mBleInitCallBack.onError("Fail to bind service.");
+        }
     }
 
 
@@ -171,6 +176,11 @@ public class TgiBleManager {
         mTgiBleServiceBinder.connectDevice(device, listener);
     }
 
+    //断开蓝牙
+    public void disConnectDevice() {
+        mTgiBleServiceBinder.disConnectDevice();
+    }
+
     //写入特性
     public void writeCharacteristic(byte[] data, String serviceUUID, String charUUID,TgiWriteCharCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
@@ -184,10 +194,11 @@ public class TgiBleManager {
     }
 
     //注册/取消通知
-    public void toggleNotification(Activity context,String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
+    public void toggleNotification(String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
         mTgiBleServiceBinder.toggleNotification(serviceUUID,charUUID,descUUID,isToTurnOn,callback);
     }
+
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     public void onRequestBtPermissionsResult(
@@ -220,4 +231,6 @@ public class TgiBleManager {
     public void setDebugMode(boolean isDebugMode) {
         LogUtils.setIsDebug(isDebugMode);
     }
+
+
 }

@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
@@ -105,7 +106,14 @@ public class TgiBleService extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceivers();
-        mTgiBtGattCallback.clear();
+        if (mBtGatt != null) {
+            mBtGatt.close();
+            mBtGatt = null;
+        }
+        if (mTgiBtGattCallback != null) {
+            mTgiBtGattCallback.clear();
+            mTgiBtGattCallback = null;
+        }
         LogUtils.showLog("service is destroyed.");
     }
 
@@ -215,6 +223,9 @@ public class TgiBleService extends Service {
                         listener.onConnectFail("Fail to connect target device on connecting stage.");
                         mConnectSwitch.release();
                         listener.onConnectSessionEnds();
+
+                        //这里需要判断设备由于不可预知的原因断开，需要自动重连的情况：
+                        //todo
                     }
                 }
 
@@ -224,7 +235,7 @@ public class TgiBleService extends Service {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
                         mBtGatt = gatt;
-                        listener.onConnect(gatt.getDevice());
+                        listener.onConnect(gatt);
                         mConnectSwitch.release();
                         listener.onConnectSessionEnds();
                     } else if (status == BluetoothGatt.GATT_FAILURE) {
@@ -333,8 +344,8 @@ public class TgiBleService extends Service {
                     }
 
                     BluetoothGattDescriptor btDesc = btChar.getDescriptor(UUID.fromString(descUUID));
-                    callback.onError("Target descriptor cannot be reached.");
                     if (btDesc == null) {
+                        callback.onError("Target descriptor cannot be reached.");
                         return;
                     }
 
@@ -345,12 +356,18 @@ public class TgiBleService extends Service {
                             btDesc,
                             isToTurnOn,
                             mTgiBtGattCallback);
-
                     session.start(callback);
 
                 }
             });
+        }
 
+        //断开连接
+        void disConnectDevice() {
+            if(mBtGatt!=null){
+                mBtGatt.close();
+                mBtGatt=null;
+            }
         }
     }
 
@@ -391,7 +408,7 @@ public class TgiBleService extends Service {
             //本机蓝牙 初始化第五步：实时监听蓝牙启动状态，如果发现被关闭了，将重新打开。
             //至此1-5步完成了本机蓝牙的初始化。
             mBtEnableState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
-            if(mBtEnableState==BluetoothAdapter.STATE_OFF){
+            if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
                 enableBt();
             }
         }

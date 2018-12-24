@@ -58,7 +58,6 @@ public class TgiToggleNotificationSession {
             mBtGattCallback.unRegisterToggleNotificationSession(this);
             close();
         }
-
     }
 
     String getSessionUUID() {

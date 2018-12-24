@@ -67,7 +67,6 @@ public class TgiReadCharSession {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(mSessionUUID);
     }
 }

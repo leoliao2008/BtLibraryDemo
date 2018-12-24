@@ -12,4 +12,8 @@ package tgi.com.librarybtmanager;
 public class BleInitCallBack {
     public void onError(String msg) {
     }
+
+    public void onInitSuccess() {
+
+    }
 }

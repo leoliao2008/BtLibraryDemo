@@ -22,7 +22,7 @@ public class BtDeviceConnectStateListener {
     public void onConnectSessionEnds() {
     }
 
-    public void onConnect(BluetoothDevice device) {
+    public void onConnect(BluetoothGatt gatt) {
 
     }
 }
