@@ -14,12 +14,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * <p><b>Author:</b></p>
@@ -39,6 +39,7 @@ public class TgiBleService extends Service {
     private BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
     private TgiBtGattCallback mTgiBtGattCallback;
+    private AtomicBoolean mIsConnectingDevice = new AtomicBoolean(false);
 
 
     //bindService 生命流程1
@@ -196,69 +197,83 @@ public class TgiBleService extends Service {
             if (!mConnectSwitch.tryAcquire()) {
                 return;
             }
-            //连接蓝牙设备第二步：判断是否已经有连接好的，如果有，检查一下是否就是目标设备，
-            //如果是，放弃当前操作；
-            //如果不是，关闭之前的连接，重新开始新的连接。
-            if (mBtGatt != null) {
-                String address = mBtGatt.getDevice().getAddress();
-                if (address.equals(device.getAddress())) {
-                    mConnectSwitch.release();
-                    return;
-                } else {
-                    mBtGatt.close();
-                    mBtGatt = null;
+
+            if (mIsConnectingDevice.compareAndSet(false, true)) {
+                //连接蓝牙设备第二步：判断是否已经有连接好的，如果有，检查一下是否就是目标设备，
+                //如果是，放弃当前操作；
+                //如果不是，关闭之前的连接，重新开始新的连接。
+                if (mBtGatt != null) {
+                    String address = mBtGatt.getDevice().getAddress();
+                    if (address.equals(device.getAddress())) {
+                        mConnectSwitch.release();
+                        return;
+                    } else {
+                        mBtGatt.close();
+                        mBtGatt = null;
+                    }
                 }
+                //这个回调用来监听蓝牙设备连接后的各种情况
+                BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
+                    @Override
+                    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                        super.onConnectionStateChange(gatt, status, newState);
+                        if (newState == BluetoothGatt.STATE_CONNECTED) {
+                            //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
+                            gatt.discoverServices();
+                        } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                            //连接失败，退出。
+                            //这是启动连接时失败的情况。关闭流程，返回错误。
+                            if(mIsConnectingDevice.get()){
+                                gatt.close();
+                                listener.onConnectFail("Fail to connect target device on connecting stage.");
+                                mConnectSwitch.release();
+                                mIsConnectingDevice.set(false);
+                                listener.onConnectSessionEnds();
+                            }else {
+                                //这是由于不可预知的原因造成连接中断，自动重连。
+                                //自动重连第一步：重新连接
+                                if(mBtGatt!=null){
+                                    mBtGatt.connect();
+                                }
+                            }
+
+                        }
+                    }
+
+                    @Override
+                    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                        super.onServicesDiscovered(gatt, status);
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
+                            mBtGatt = gatt;
+                            listener.onConnect(gatt);
+                            mConnectSwitch.release();
+                            mIsConnectingDevice.set(false);
+                            listener.onConnectSessionEnds();
+                        } else if (status == BluetoothGatt.GATT_FAILURE) {
+                            //连接失败，退出。
+                            gatt.close();
+                            listener.onConnectFail("Target device is connected, but fails to discover services.");
+                            mConnectSwitch.release();
+                            mIsConnectingDevice.set(false);
+                            listener.onConnectSessionEnds();
+                        }
+                    }
+                };
+                mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
+                checkBtBondedBeforeProceed(device, new Runnable() {
+                    @Override
+                    public void run() {
+                        //连接蓝牙设备第三步：正式连接
+                        device.connectGatt(
+                                getApplicationContext(),
+                                false,
+                                //mTgiBtGattCallback，不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
+                                mTgiBtGattCallback);
+                    }
+                });
             }
-            //这个回调用来监听蓝牙设备连接后的各种情况
-            BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback() {
-                @Override
-                public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-                    super.onConnectionStateChange(gatt, status, newState);
-                    if (newState == BluetoothGatt.STATE_CONNECTED) {
-                        //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
-                        gatt.discoverServices();
-                    } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                        //连接失败，退出。
-                        gatt.close();
-                        listener.onConnectFail("Fail to connect target device on connecting stage.");
-                        mConnectSwitch.release();
-                        listener.onConnectSessionEnds();
 
-                        //这里需要判断设备由于不可预知的原因断开，需要自动重连的情况：
-                        //todo
-                    }
-                }
-
-                @Override
-                public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-                    super.onServicesDiscovered(gatt, status);
-                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                        //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
-                        mBtGatt = gatt;
-                        listener.onConnect(gatt);
-                        mConnectSwitch.release();
-                        listener.onConnectSessionEnds();
-                    } else if (status == BluetoothGatt.GATT_FAILURE) {
-                        //连接失败，退出。
-                        gatt.close();
-                        listener.onConnectFail("Target device is connected, but fails to discover services.");
-                        mConnectSwitch.release();
-                        listener.onConnectSessionEnds();
-                    }
-                }
-            };
-            mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
-            checkBtBondedBeforeProceed(device, new Runnable() {
-                @Override
-                public void run() {
-                    //连接蓝牙设备第三步：正式连接
-                    device.connectGatt(
-                            getApplicationContext(),
-                            false,
-                            //mTgiBtGattCallback，不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
-                            mTgiBtGattCallback);
-                }
-            });
         }
 
         //写入特性
@@ -364,9 +379,9 @@ public class TgiBleService extends Service {
 
         //断开连接
         void disConnectDevice() {
-            if(mBtGatt!=null){
+            if (mBtGatt != null) {
                 mBtGatt.close();
-                mBtGatt=null;
+                mBtGatt = null;
             }
         }
     }
