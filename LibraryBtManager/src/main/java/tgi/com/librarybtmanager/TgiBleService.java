@@ -77,11 +77,11 @@ public class TgiBleService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         LogUtils.showLog("service is bounded.");
-        //本机蓝牙初始化第四步：检查蓝牙是否被打开了，如果没有，现在打开。
+        //本机蓝牙初始化第二步：检查蓝牙是否被打开了，如果没有，现在打开。
         if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
             enableBt();
         }
-        //本机蓝牙初始化第二步：先返回binder给TgiBleManager
+        //本机蓝牙初始化第三步：返回binder给TgiBleManager
         return new TgiBleServiceBinder();
     }
 
@@ -178,7 +178,7 @@ public class TgiBleService extends Service {
                     boolean isInitSuccess = mBleClientModel.pairDevice(device);
                     if (!isInitSuccess) {
                         //如果启动配对失败，这里报错，并且释放资源。
-                        listener.onFailToPair("Fail to initiate device pairing.");
+                        listener.onError("Fail to initiate device pairing.");
                         listener.onParingSessionEnd();
                         mDeviceParingStateListener = null;
                         if (mPairingStatesReceiver != null) {
@@ -236,7 +236,6 @@ public class TgiBleService extends Service {
                                     mBtGatt.connect();
                                 }
                             }
-
                         }
                     }
 
@@ -420,8 +419,8 @@ public class TgiBleService extends Service {
             //     * {@link #STATE_TURNING_ON},
             //     * {@link #STATE_ON},
             //     * {@link #STATE_TURNING_OFF},
-            //本机蓝牙 初始化第五步：实时监听蓝牙启动状态，如果发现被关闭了，将重新打开。
-            //至此1-5步完成了本机蓝牙的初始化。
+            //本机蓝牙 初始化第四步：实时监听蓝牙启动状态，如果发现被关闭了，将重新打开。
+            //至此1-4步完成了本机蓝牙的初始化。
             mBtEnableState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
             if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
                 enableBt();

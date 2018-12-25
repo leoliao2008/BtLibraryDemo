@@ -24,7 +24,7 @@ public class DeviceParingStateListener {
 
     }
 
-    public void onFailToPair(String errorMsg){
+    public void onError(String errorMsg){
 
     }
 }

@@ -2,7 +2,6 @@ package tgi.com.librarybtmanager;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
@@ -126,6 +125,7 @@ public class TgiBleManager {
         if (mServiceConnection != null) {
             activity.unbindService(mServiceConnection);
             mServiceConnection = null;
+            mTgiBleServiceBinder=null;
         }
         //然后正式停止
         Intent intent = new Intent(activity, TgiBleService.class);
@@ -134,34 +134,45 @@ public class TgiBleManager {
 
     //扫描周围蓝牙设备
     @SuppressLint("MissingPermission")
-    public void startScanBtDevices(TgiBleScanCallback callback) throws BtNotEnabledException {
-        if (mTgiBleServiceBinder == null) {
-            return;
+    public void startScanBtDevices(final TgiBleScanCallback callback)
+            throws BtNotEnabledException {
+        if(checkIfServiceAvailable()){
+            mTgiBleScanCallback = callback;
+            mTgiBleServiceBinder.startScanDevice(callback);
+            //5秒后自动停止扫描
+            mHandler.postDelayed(mRunnableStopScanningDevices, 5000);
         }
-        mTgiBleScanCallback = callback;
-        //        Set<BluetoothDevice> bondedDevices = BluetoothAdapter.getDefaultAdapter().getBondedDevices();
-        //        //先把曾经配对过的设备返回
-        //        for(BluetoothDevice device:bondedDevices){
-        //            callback.onLeScan(device,0,new byte[0]);
-        //        }
-        mTgiBleServiceBinder.startScanDevice(callback);
-        //5秒后自动停止扫描
-        mHandler.postDelayed(mRunnableStopScanningDevices, 5000);
+
     }
 
     //停止扫描周围蓝牙设备
     public void stopScanBtDevice() throws BtNotEnabledException {
-        if (mTgiBleServiceBinder == null || mTgiBleScanCallback == null) {
-            return;
+        if(checkIfServiceAvailable()&&mTgiBleScanCallback != null){
+            mTgiBleServiceBinder.stopScanDevice(mTgiBleScanCallback);
+            //确保消息队列里停止扫描的操作被清除，因为已经没意义。
+            mHandler.removeCallbacks(mRunnableStopScanningDevices);
         }
-        mTgiBleServiceBinder.stopScanDevice(mTgiBleScanCallback);
-        //确保消息队列里停止扫描的操作被清除，因为已经没意义。
-        mHandler.removeCallbacks(mRunnableStopScanningDevices);
+    }
+
+    public boolean checkIfDeviceBounded(String deviceAddress){
+        return checkIfDeviceBounded(mBleClientModel.getDeviceByAddress(deviceAddress));
+    }
+
+    @SuppressLint("MissingPermission")
+    public boolean checkIfDeviceBounded(BluetoothDevice device){
+        return device.getBondState()==BluetoothDevice.BOND_BONDED;
+    }
+
+    //根据远程设备地址进行蓝牙配对。
+    public void pairDevice(String deviceAddress, DeviceParingStateListener listener) throws BtNotEnabledException {
+        pairDevice(mBleClientModel.getDeviceByAddress(deviceAddress),listener);
     }
 
     //蓝牙配对。是否需要增加取消配对状态的方法？不需要。连接哪个设备由主程序决定，跟配对清单没关系。
     public void pairDevice(BluetoothDevice device, DeviceParingStateListener listener) throws BtNotEnabledException {
-        mTgiBleServiceBinder.pairDevice(device, listener);
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.pairDevice(device, listener);
+        }
     }
 
     //知道蓝牙地址，连接蓝牙设备
@@ -173,30 +184,45 @@ public class TgiBleManager {
     //知道蓝牙对象，连接蓝牙设备
     public void connectDevice(BluetoothDevice device, BtDeviceConnectStateListener listener)
             throws BtNotBondedException, BtNotEnabledException {
-        mTgiBleServiceBinder.connectDevice(device, listener);
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.connectDevice(device, listener);
+        }
     }
 
     //断开蓝牙
     public void disConnectDevice() {
-        mTgiBleServiceBinder.disConnectDevice();
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.disConnectDevice();
+        }
     }
 
     //写入特性
     public void writeCharacteristic(byte[] data, String serviceUUID, String charUUID,TgiWriteCharCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
-        mTgiBleServiceBinder.writeChar(data,serviceUUID,charUUID,callback);
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.writeChar(data,serviceUUID,charUUID,callback);
+        }
+
     }
 
     //读取特性
     public void readCharacteristic(String serviceUUID,String charUUID,TgiReadCharCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
-        mTgiBleServiceBinder.readChar(serviceUUID,charUUID,callback);
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.readChar(serviceUUID,charUUID,callback);
+        }
     }
 
     //注册/取消通知
     public void toggleNotification(String serviceUUID,String charUUID,String descUUID,boolean isToTurnOn,TgiToggleNotificationCallback callback)
             throws BtNotConnectedYetException, BtNotEnabledException, BtNotBondedException {
-        mTgiBleServiceBinder.toggleNotification(serviceUUID,charUUID,descUUID,isToTurnOn,callback);
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.toggleNotification(serviceUUID,charUUID,descUUID,isToTurnOn,callback);
+        }
+    }
+
+    private boolean checkIfServiceAvailable(){
+        return mTgiBleServiceBinder!=null;
     }
 
 
