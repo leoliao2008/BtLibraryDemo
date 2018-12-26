@@ -3,7 +3,6 @@ package tgi.com.librarybtmanager;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.os.SystemClock;
 
 /**
  * Author: Administrator

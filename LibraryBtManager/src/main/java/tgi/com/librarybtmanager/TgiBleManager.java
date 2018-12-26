@@ -127,6 +127,10 @@ public class TgiBleManager {
             mServiceConnection = null;
             mTgiBleServiceBinder=null;
         }
+        //释放资源
+        if(mBleInitCallBack!=null){
+            mBleInitCallBack=null;
+        }
         //然后正式停止
         Intent intent = new Intent(activity, TgiBleService.class);
         activity.stopService(intent);

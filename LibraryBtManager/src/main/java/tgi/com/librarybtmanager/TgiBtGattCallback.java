@@ -4,17 +4,12 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
-import android.hardware.camera2.CaptureRequest;
-import android.os.SystemClock;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.Semaphore;
 
 import static tgi.com.librarybtmanager.LogUtils.showLog;
 
@@ -146,6 +141,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         sb.append("disable notification.");
                     }
                     session.getTgiToggleNotificationCallback().onError(sb.toString());
+                    session.close();
                 }
                 iterator.remove();
             }

@@ -1,7 +1,8 @@
 package tgi.com.librarybtmanager;
 
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt; /**
+import android.bluetooth.BluetoothGatt;
+
+/**
  * <p><b>Author:</b></p>
  * <i>leo</i>
  * <p><b>Date:</b></p>
