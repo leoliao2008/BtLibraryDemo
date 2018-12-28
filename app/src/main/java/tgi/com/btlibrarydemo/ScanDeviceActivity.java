@@ -63,83 +63,75 @@ public class ScanDeviceActivity extends AppCompatActivity {
         mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                try {
-                    TgiBleManager.getInstance().pairDevice(
-                            mDevices.get(position),
-                            new DeviceParingStateListener() {
-                                @Override
-                                public void onParingSessionBegin() {
-                                    super.onParingSessionBegin();
-                                    showLog("onParingSessionBegin");
-                                }
+                TgiBleManager.getInstance().pairDevice(
+                        mDevices.get(position),
+                        new DeviceParingStateListener() {
+                            @Override
+                            public void onParingSessionBegin() {
+                                super.onParingSessionBegin();
+                                showLog("onParingSessionBegin");
+                            }
 
-                                @Override
-                                public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
-                                    super.onDevicePairingStateChanged(device, previousState, currentState);
-                                    switch (currentState) {
-                                        case BluetoothDevice.BOND_NONE:
-                                            showLog("device "+device.getAddress()+" is not bonded.");
-                                            break;
-                                        case BluetoothDevice.BOND_BONDED:
-                                            showLog("device "+device.getAddress()+" is bonded.");
-                                            int state = device.getBondState();
-                                            showLog("have a second check...");
-                                            if(state==currentState){
-                                                showLog("ya, it is truly bonded.");
-                                                showLog("begin to connect device...");
-                                                ConnectDeviceActivity.start(mThis,device.getAddress());
-                                            }else {
-                                                showLog("No, it is actually not bonded, what is wrong?");
-                                            }
-                                            break;
-                                        case BluetoothDevice.BOND_BONDING:
-                                            showLog("device "+device.getAddress()+" is bonding.");
-                                            break;
-                                    }
-                                }
-
-                                @Override
-                                public void onParingSessionEnd() {
-                                    super.onParingSessionEnd();
-                                    showLog("onParingSessionEnd");
+                            @Override
+                            public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
+                                super.onDevicePairingStateChanged(device, previousState, currentState);
+                                switch (currentState) {
+                                    case BluetoothDevice.BOND_NONE:
+                                        showLog("device "+device.getAddress()+" is not bonded.");
+                                        break;
+                                    case BluetoothDevice.BOND_BONDED:
+                                        showLog("device "+device.getAddress()+" is bonded.");
+                                        int state = device.getBondState();
+                                        showLog("have a second check...");
+                                        if(state==currentState){
+                                            showLog("ya, it is truly bonded.");
+                                            showLog("begin to connect device...");
+                                            ConnectDeviceActivity.start(mThis,device.getAddress());
+                                        }else {
+                                            showLog("No, it is actually not bonded, what is wrong?");
+                                        }
+                                        break;
+                                    case BluetoothDevice.BOND_BONDING:
+                                        showLog("device "+device.getAddress()+" is bonding.");
+                                        break;
                                 }
                             }
-                    );
-                } catch (BtNotEnabledException e) {
-                    e.printStackTrace();
-                }
+
+                            @Override
+                            public void onParingSessionEnd() {
+                                super.onParingSessionEnd();
+                                showLog("onParingSessionEnd");
+                            }
+                        }
+                );
             }
         });
 
 
-        try {
-            TgiBleManager.getInstance().startScanBtDevices(new TgiBleScanCallback() {
-                @Override
-                public void onPreScan() {
-                    super.onPreScan();
-                    mDevices.clear();
+        TgiBleManager.getInstance().startScanBtDevices(new TgiBleScanCallback() {
+            @Override
+            public void onPreScan() {
+                super.onPreScan();
+                mDevices.clear();
+                mAdapter.notifyDataSetChanged();
+                showLog("Scan Starts.");
+            }
+
+            @Override
+            public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+                super.onLeScan(device, rssi, scanRecord);
+                if (!mDevices.contains(device)) {
+                    mDevices.add(device);
                     mAdapter.notifyDataSetChanged();
-                    showLog("Scan Starts.");
                 }
+            }
 
-                @Override
-                public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-                    super.onLeScan(device, rssi, scanRecord);
-                    if (!mDevices.contains(device)) {
-                        mDevices.add(device);
-                        mAdapter.notifyDataSetChanged();
-                    }
-                }
-
-                @Override
-                public void onPostScan() {
-                    super.onPostScan();
-                    showLog("Scan Stops.");
-                }
-            });
-        } catch (BtNotEnabledException e) {
-            e.printStackTrace();
-        }
+            @Override
+            public void onPostScan() {
+                super.onPostScan();
+                showLog("Scan Stops.");
+            }
+        });
     }
 
     void showLog(String msg){

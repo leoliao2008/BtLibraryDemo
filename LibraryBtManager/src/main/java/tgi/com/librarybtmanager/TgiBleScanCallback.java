@@ -23,4 +23,8 @@ public class TgiBleScanCallback implements BluetoothAdapter.LeScanCallback {
     public void onPostScan(){
 
     }
+
+    public void onError(String errorMsg) {
+
+    }
 }

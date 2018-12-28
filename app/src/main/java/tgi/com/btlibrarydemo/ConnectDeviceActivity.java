@@ -20,10 +20,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
-import tgi.com.librarybtmanager.BtDeviceConnectStateListener;
-import tgi.com.librarybtmanager.BtNotBondedException;
-import tgi.com.librarybtmanager.BtNotConnectedYetException;
-import tgi.com.librarybtmanager.BtNotEnabledException;
+import tgi.com.librarybtmanager.BtDeviceConnectListener;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiReadCharCallback;
 import tgi.com.librarybtmanager.TgiToggleNotificationCallback;
@@ -64,9 +61,6 @@ public class ConnectDeviceActivity extends AppCompatActivity {
             }
         };
         mListView.setAdapter(mAdapter);
-
-
-
     }
 
     @Override
@@ -87,91 +81,57 @@ public class ConnectDeviceActivity extends AppCompatActivity {
 
     private void connectDevice() {
         String address = getIntent().getStringExtra(BT_DEVICE_ADDRESS);
-        try {
-            TgiBleManager.getInstance().connectDevice(address,new BtDeviceConnectStateListener(){
-                @Override
-                public void onConnectSessionBegins() {
-                    super.onConnectSessionBegins();
-                    showLog("onConnectSessionBegins");
-                    mLogs.clear();
-                    mAdapter.notifyDataSetChanged();
-                }
+        showLog("onConnectSessionBegins");
+        mLogs.clear();
+        mAdapter.notifyDataSetChanged();
+        TgiBleManager.getInstance().connectDevice(address,new BtDeviceConnectListener(){
 
-                @Override
-                public void onConnect(final BluetoothGatt gatt) {
-                    super.onConnect(gatt);
-                    final long timeMillis = System.currentTimeMillis();
-                    showLog("xxxxx,start:"+ timeMillis);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            long timeMillis1 = System.currentTimeMillis();
-                            showLog("xxxxx,stop:"+timeMillis1);
-                            showLog("duration: "+(timeMillis1-timeMillis));
-                            showLog("onConnect Success device:"+gatt.getDevice().getAddress());
-                            try {
-                                TgiBleManager.getInstance().toggleNotification(
-                                        Constants.MASTER_SERVICE_UUID,
-                                        Constants.STATUS_CHAR_UUID,
-                                        Constants.STATUS_DESCRIPTOR_UUID,
-                                        true,
-                                        new TgiToggleNotificationCallback(){
-                                            @Override
-                                            public void onToggleNotificationSuccess(BluetoothGattDescriptor descriptor) {
-                                                super.onToggleNotificationSuccess(descriptor);
-                                                showLog("onToggleNotificationSuccess");
-                                                isNotificationOn=true;
-                                            }
+            @Override
+            public void onConnectSuccess(final BluetoothGatt gatt) {
+                super.onConnectSuccess(gatt);
+                final long timeMillis = System.currentTimeMillis();
+                showLog("xxxxx,start:"+ timeMillis);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        long timeMillis1 = System.currentTimeMillis();
+                        showLog("xxxxx,stop:"+timeMillis1);
+                        showLog("duration: "+(timeMillis1-timeMillis));
+                        showLog("onConnect Success device:"+gatt.getDevice().getAddress());
+                        TgiBleManager.getInstance().toggleNotification(
+                                Constants.MASTER_SERVICE_UUID,
+                                Constants.STATUS_CHAR_UUID,
+                                Constants.STATUS_DESCRIPTOR_UUID,
+                                true,
+                                new TgiToggleNotificationCallback(){
+                                    @Override
+                                    public void onToggleNotificationSuccess(BluetoothGattDescriptor descriptor) {
+                                        super.onToggleNotificationSuccess(descriptor);
+                                        showLog("onToggleNotificationSuccess");
+                                        isNotificationOn=true;
+                                    }
 
-                                            @Override
-                                            public void onError(String errorMsg) {
-                                                super.onError(errorMsg);
-                                                showLog("onError:"+errorMsg);
-                                            }
+                                    @Override
+                                    public void onError(String errorMsg) {
+                                        super.onError(errorMsg);
+                                        showLog("onError:"+errorMsg);
+                                    }
 
-                                            @Override
-                                            public void onCharChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                                                super.onCharChanged(gatt, characteristic);
-                                                byte[] value = characteristic.getValue();
-                                                String temp=convertToHexString(value);
-                                                showLog("onCharChanged: "+temp);
-                                            }
-                                        }
-                                );
-                            } catch (BtNotConnectedYetException e) {
-                                e.printStackTrace();
-                                showLog(e.getMessage());
-                            } catch (BtNotEnabledException e) {
-                                e.printStackTrace();
-                                showLog(e.getMessage());
-                            } catch (BtNotBondedException e) {
-                                e.printStackTrace();
-                                showLog(e.getMessage());
-                            }
-                        }
-                    });
+                                    @Override
+                                    public void onCharChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                                        super.onCharChanged(gatt, characteristic);
+                                        byte[] value = characteristic.getValue();
+                                        String temp=convertToHexString(value);
+                                        showLog("onCharChanged: "+temp);
+                                    }
+                                }
+                        );
+                    }
+                });
 
-                }
+            }
 
-                @Override
-                public void onConnectFail(String errorMsg) {
-                    super.onConnectFail(errorMsg);
-                    showLog("onConnectFail:"+errorMsg);
-                }
-
-                @Override
-                public void onConnectSessionEnds() {
-                    super.onConnectSessionEnds();
-                    showLog("onConnectSessionEnds");
-                }
-            });
-        } catch (BtNotBondedException e) {
-            e.printStackTrace();
-            showLog("BtNotBondedException");
-        } catch (BtNotEnabledException e) {
-            e.printStackTrace();
-            showLog("BtNotBondedException");
-        }
+        });
     }
 
     private String convertToHexString(byte[] value) {
@@ -208,101 +168,77 @@ public class ConnectDeviceActivity extends AppCompatActivity {
     }
 
     public void toggleNotification(View view) {
-        try {
-            final boolean isToTurnOn=!isNotificationOn;
-            TgiBleManager.getInstance().toggleNotification(
-                    Constants.MASTER_SERVICE_UUID,
-                    Constants.STATUS_CHAR_UUID,
-                    Constants.STATUS_DESCRIPTOR_UUID,
-                    isToTurnOn,
-                    new TgiToggleNotificationCallback(){
-                        @Override
-                        public void onToggleNotificationSuccess(BluetoothGattDescriptor descriptor) {
-                            super.onToggleNotificationSuccess(descriptor);
-                            isNotificationOn=isToTurnOn;
-                            showLog(isNotificationOn?"通知重新打开了":"通知关闭了");
-                        }
-
-                        @Override
-                        public void onCharChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                            super.onCharChanged(gatt, characteristic);
-                            byte[] value = characteristic.getValue();
-                            String temp=convertToHexString(value);
-                            showLog("onCharChanged: "+temp);
-                        }
-
-                        @Override
-                        public void onError(String errorMsg) {
-                            super.onError(errorMsg);
-                            showLog(errorMsg);
-                        }
+        final boolean isToTurnOn=!isNotificationOn;
+        TgiBleManager.getInstance().toggleNotification(
+                Constants.MASTER_SERVICE_UUID,
+                Constants.STATUS_CHAR_UUID,
+                Constants.STATUS_DESCRIPTOR_UUID,
+                isToTurnOn,
+                new TgiToggleNotificationCallback(){
+                    @Override
+                    public void onToggleNotificationSuccess(BluetoothGattDescriptor descriptor) {
+                        super.onToggleNotificationSuccess(descriptor);
+                        isNotificationOn=isToTurnOn;
+                        showLog(isNotificationOn?"通知重新打开了":"通知关闭了");
                     }
-            );
-        } catch (BtNotConnectedYetException e) {
-            e.printStackTrace();
-        } catch (BtNotEnabledException e) {
-            e.printStackTrace();
-        } catch (BtNotBondedException e) {
-            e.printStackTrace();
-        }
+
+                    @Override
+                    public void onCharChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                        super.onCharChanged(gatt, characteristic);
+                        byte[] value = characteristic.getValue();
+                        String temp=convertToHexString(value);
+                        showLog("onCharChanged: "+temp);
+                    }
+
+                    @Override
+                    public void onError(String errorMsg) {
+                        super.onError(errorMsg);
+                        showLog(errorMsg);
+                    }
+                }
+        );
     }
 
     public void write(View view) {
-        try {
-            TgiBleManager.getInstance().writeCharacteristic(
-                    new byte[]{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20},
-                    Constants.MASTER_SERVICE_UUID,
-                    Constants.FUNCTION_CHAR_UUID,
-                    new TgiWriteCharCallback(){
-                        @Override
-                        public void onWriteSuccess(BluetoothGattCharacteristic characteristic) {
-                            super.onWriteSuccess(characteristic);
-                            showLog("char被写入了："+convertToHexString(characteristic.getValue()));
-                        }
-
-                        @Override
-                        public void onWriteFailed(String errorMsg) {
-                            super.onWriteFailed(errorMsg);
-                            showLog("char 写入失败:"+errorMsg);
-                        }
+        TgiBleManager.getInstance().writeCharacteristic(
+                new byte[]{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20},
+                Constants.MASTER_SERVICE_UUID,
+                Constants.FUNCTION_CHAR_UUID,
+                new TgiWriteCharCallback(){
+                    @Override
+                    public void onWriteSuccess(BluetoothGattCharacteristic characteristic) {
+                        super.onWriteSuccess(characteristic);
+                        showLog("char被写入了："+convertToHexString(characteristic.getValue()));
                     }
-            );
-        } catch (BtNotConnectedYetException e) {
-            e.printStackTrace();
-        } catch (BtNotEnabledException e) {
-            e.printStackTrace();
-        } catch (BtNotBondedException e) {
-            e.printStackTrace();
-        }
+
+                    @Override
+                    public void onWriteFailed(String errorMsg) {
+                        super.onWriteFailed(errorMsg);
+                        showLog("char 写入失败:"+errorMsg);
+                    }
+                }
+        );
     }
 
     public void read(View view) {
-        try {
-            TgiBleManager.getInstance().readCharacteristic(
-                    Constants.MASTER_SERVICE_UUID,
-                    Constants.FUNCTION_CHAR_UUID,
-                    new TgiReadCharCallback(){
-                        @Override
-                        public void onCharRead(BluetoothGattCharacteristic btChar, byte[] value) {
-                            super.onCharRead(btChar, value);
-                            showLog("char被读取了："+convertToHexString(value));
-                        }
-
-                        @Override
-                        public void onError(String errorMsg) {
-                            super.onError(errorMsg);
-                            showLog("onError:"+errorMsg);
-                        }
-
+        TgiBleManager.getInstance().readCharacteristic(
+                Constants.MASTER_SERVICE_UUID,
+                Constants.FUNCTION_CHAR_UUID,
+                new TgiReadCharCallback(){
+                    @Override
+                    public void onCharRead(BluetoothGattCharacteristic btChar, byte[] value) {
+                        super.onCharRead(btChar, value);
+                        showLog("char被读取了："+convertToHexString(value));
                     }
-            );
-        } catch (BtNotConnectedYetException e) {
-            e.printStackTrace();
-        } catch (BtNotEnabledException e) {
-            e.printStackTrace();
-        } catch (BtNotBondedException e) {
-            e.printStackTrace();
-        }
+
+                    @Override
+                    public void onError(String errorMsg) {
+                        super.onError(errorMsg);
+                        showLog("onError:"+errorMsg);
+                    }
+
+                }
+        );
 
     }
 }

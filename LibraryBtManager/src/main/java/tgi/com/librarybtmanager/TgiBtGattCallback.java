@@ -146,6 +146,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         sb.append("disable notification.");
                     }
                     session.getTgiToggleNotificationCallback().onError(sb.toString());
+                    session.close();
                 }
                 iterator.remove();
             }
