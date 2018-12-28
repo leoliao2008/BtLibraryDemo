@@ -16,6 +16,7 @@ public class BtDeviceConnectListener {
 
     public void onConnectSuccess(BluetoothGatt gatt) {
 
+
     }
 
     public void onConnectFail(String errorMsg) {
