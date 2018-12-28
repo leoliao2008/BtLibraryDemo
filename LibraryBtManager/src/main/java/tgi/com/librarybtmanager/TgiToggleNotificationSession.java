@@ -1,7 +1,6 @@
 package tgi.com.librarybtmanager;
 
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
 import java.util.Objects;

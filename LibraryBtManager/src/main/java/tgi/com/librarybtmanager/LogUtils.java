@@ -1,6 +1,5 @@
 package tgi.com.librarybtmanager;
 
-import android.nfc.tech.IsoDep;
 import android.util.Log;
 
 /**

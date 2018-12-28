@@ -36,7 +36,7 @@ public class TgiWriteCharSession {
             callback.onWriteFailed("Fail to set data to local characteristic.");
             return;
         }
-        mWriteContent = data;
+        mWriteContent = data.clone();
         mTgiWriteCharCallback = callback;
         mBtGattCallback.registerWriteSession(this);
         boolean isInitSuccess = mBluetoothGatt.writeCharacteristic(mBtChar);

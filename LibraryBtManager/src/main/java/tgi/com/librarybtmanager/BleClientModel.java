@@ -3,9 +3,6 @@ package tgi.com.librarybtmanager;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.content.Context;
 import android.content.pm.PackageManager;
 
 class BleClientModel {
