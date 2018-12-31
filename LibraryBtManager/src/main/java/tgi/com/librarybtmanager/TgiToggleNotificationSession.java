@@ -1,7 +1,9 @@
 package tgi.com.librarybtmanager;
 
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.media.FaceDetector;
 
 import java.util.Objects;
 
@@ -12,23 +14,23 @@ import java.util.Objects;
  * Description:
  */
 public class TgiToggleNotificationSession {
-    private BluetoothGatt mBluetoothGatt;
     private TgiBtGattCallback mBtGattCallback;
     private TgiToggleNotificationCallback mTgiToggleNotificationCallback;
     private BluetoothGattDescriptor mDescriptor;
+    private BluetoothGatt mBluetoothGatt;
     private String mSessionUUID;
     private boolean mIsToTurnOn;
 
     TgiToggleNotificationSession(
-            BluetoothGatt bluetoothGatt,
+            BluetoothGatt btGatt,
             BluetoothGattDescriptor descriptor,
             boolean isToTurnOn,
             TgiBtGattCallback tgiBtGattCallback) {
-        mBluetoothGatt = bluetoothGatt;
         mDescriptor = descriptor;
         mBtGattCallback = tgiBtGattCallback;
         mIsToTurnOn = isToTurnOn;
-        mSessionUUID = SessionUUIDGenerator.genToggleNotificationSessionUUID(bluetoothGatt.getDevice(), mDescriptor);
+        mBluetoothGatt=btGatt;
+        mSessionUUID = SessionUUIDGenerator.genToggleNotificationSessionUUID(btGatt.getDevice(), mDescriptor);
     }
 
 
@@ -36,6 +38,7 @@ public class TgiToggleNotificationSession {
         boolean isInitSuccess = mBluetoothGatt.setCharacteristicNotification(mDescriptor.getCharacteristic(), mIsToTurnOn);
         if (!isInitSuccess) {
             callback.onError("Target characteristic value cannot be set.");
+            showLog("通知设置失败：更新本地特性值失败");
             return;
         }
         if (mIsToTurnOn) {
@@ -43,9 +46,9 @@ public class TgiToggleNotificationSession {
         } else {
             isInitSuccess = mDescriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
         }
-
         if (!isInitSuccess) {
             callback.onError("Target descriptor value cannot be set.");
+            showLog("通知设置失败：更新本地描述值失败");
             return;
         }
         mTgiToggleNotificationCallback = callback;
@@ -54,6 +57,7 @@ public class TgiToggleNotificationSession {
         //如果一开始就无法启动流程，则直接结束，释放资源。
         if (!isInitSuccess) {
             callback.onError("Target descriptor cannot be written into characteristic.");
+            showLog("通知设置失败：启动不了远程更新。");
             mBtGattCallback.unRegisterToggleNotificationSession(this);
             close();
         }
@@ -88,6 +92,10 @@ public class TgiToggleNotificationSession {
     @Override
     public int hashCode() {
         return Objects.hash(mSessionUUID);
+    }
+
+    private void showLog(String msg){
+        LogUtils.showLog(msg);
     }
 
 
