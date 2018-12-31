@@ -95,7 +95,9 @@ public class TgiBleManager {
                 //6，返回一个binder，用来操纵service。
                 //1-6流程到此完结。以上是本机蓝牙初始化的工作。
                 mTgiBleServiceBinder = (TgiBleService.TgiBleServiceBinder) service;
-                mBleInitCallBack.onInitSuccess();
+                if(mBleInitCallBack!=null){
+                    mBleInitCallBack.onInitSuccess();
+                }
             }
 
             @Override
@@ -111,7 +113,9 @@ public class TgiBleManager {
         );
         //如果没有粘结成功，返回相关信息方便debug。
         if (isSuccess) {
-            mBleInitCallBack.onError("Fail to bind service.");
+            if(mBleInitCallBack!=null){
+                mBleInitCallBack.onError("Fail to bind service.");
+            }
         }
     }
 
@@ -140,6 +144,8 @@ public class TgiBleManager {
             mTgiBleServiceBinder.startScanDevice(callback);
             //5秒后自动停止扫描
             mHandler.postDelayed(mRunnableStopScanningDevices, 5000);
+        }else {
+            callback.onError("Bt Service is not bonded.");
         }
 
     }
@@ -150,6 +156,10 @@ public class TgiBleManager {
             mTgiBleServiceBinder.stopScanDevice(mTgiBleScanCallback);
             //确保消息队列里停止扫描的操作被清除，因为已经没意义。
             mHandler.removeCallbacks(mRunnableStopScanningDevices);
+        }else {
+            if(mTgiBleScanCallback!=null){
+                mTgiBleScanCallback.onError("Bt Service is not bonded.");
+            }
         }
     }
 
@@ -171,6 +181,8 @@ public class TgiBleManager {
     public void pairDevice(BluetoothDevice device, DeviceParingStateListener listener) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.pairDevice(device, listener);
+        }else {
+            listener.onError("Bt Service is not bonded.");
         }
     }
 
@@ -183,6 +195,8 @@ public class TgiBleManager {
     public void connectDevice(BluetoothDevice device, BtDeviceConnectListener listener) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.connectDevice(device, listener);
+        }else {
+            listener.onConnectFail("Bt Service is not bonded.");
         }
     }
 
@@ -197,6 +211,8 @@ public class TgiBleManager {
     public void writeCharacteristic(byte[] data, String serviceUUID, String charUUID, TgiWriteCharCallback callback) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.writeChar(data, serviceUUID, charUUID, callback);
+        }else {
+            callback.onWriteFailed("Bt Service is not bonded.");
         }
 
     }
@@ -205,6 +221,8 @@ public class TgiBleManager {
     public void readCharacteristic(String serviceUUID, String charUUID, TgiReadCharCallback callback) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.readChar(serviceUUID, charUUID, callback);
+        }else {
+            callback.onError("Bt Service is not bonded.");
         }
     }
 
@@ -213,6 +231,8 @@ public class TgiBleManager {
                                    boolean isToTurnOn, TgiToggleNotificationCallback callback) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.toggleNotification(serviceUUID, charUUID, descUUID, isToTurnOn, callback);
+        }else {
+            callback.onError("Bt Service is not bonded.");
         }
     }
 
@@ -242,6 +262,7 @@ public class TgiBleManager {
                 new Runnable() {
                     @Override
                     public void run() {
+                        //默认如果不授权就退出当前界面
                         activity.onBackPressed();
                     }
                 }
