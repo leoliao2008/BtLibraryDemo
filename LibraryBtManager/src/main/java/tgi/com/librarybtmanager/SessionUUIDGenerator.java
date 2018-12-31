@@ -39,7 +39,7 @@ class SessionUUIDGenerator {
      * @param notificationSessionUUID
      * @return
      */
-    static String[] decypherNotificationSessionUUID(String notificationSessionUUID) {
+    static String[] decryptNotificationSessionUUID(String notificationSessionUUID) {
         String[] split = notificationSessionUUID.split("@");
         if (split.length == 4) {
             return split;

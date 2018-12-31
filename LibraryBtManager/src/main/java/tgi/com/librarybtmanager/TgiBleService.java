@@ -504,7 +504,7 @@ public class TgiBleService extends Service {
             String key = entry.getKey();
             final TgiToggleNotificationSession value = entry.getValue();
             //根据NotificationSessionUUID反推出各项uuid
-            String[] params = SessionUUIDGenerator.decypherNotificationSessionUUID(key);
+            String[] params = SessionUUIDGenerator.decryptNotificationSessionUUID(key);
             if (params != null) {
                 //重新设置通知
                 mTgiBleServiceBinder.toggleNotification(
