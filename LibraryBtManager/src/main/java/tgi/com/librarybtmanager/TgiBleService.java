@@ -17,7 +17,6 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -42,9 +41,11 @@ public class TgiBleService extends Service {
     private BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
     private TgiBtGattCallback mTgiBtGattCallback;
-    private AtomicBoolean mIsConnectingDeviceByUser = new AtomicBoolean(false);
+    private AtomicBoolean mIsConnectingDeviceByClient = new AtomicBoolean(false);
     //以下两个对象提取出来是为了蓝牙被关闭又重启后，能自动重连。
     private TgiBleServiceBinder mTgiBleServiceBinder;
+    private AtomicBoolean mIsReConnectingDeviceByAI = new AtomicBoolean(false);
+    private Set<Map.Entry<String, TgiToggleNotificationSession>> mNotifications;
 
 
     //bindService 生命流程1
@@ -214,7 +215,7 @@ public class TgiBleService extends Service {
                 return;
             }
 
-            if (mIsConnectingDeviceByUser.compareAndSet(false, true)) {
+            if (mIsConnectingDeviceByClient.compareAndSet(false, true)) {
                 //连接蓝牙设备第二步：判断是否已经有连接好的，如果有，检查一下是否就是目标设备，
                 //如果是，直接走回调，返回成功；
                 //如果不是，关闭之前的连接，重新开始新的连接。
@@ -224,7 +225,7 @@ public class TgiBleService extends Service {
                         // 因为当前已经连接上了目标设备，不需要重新连接，这里跑一下listener的成功回调即可。
                         // 为什么要走一遍？因为调用方发起连接请求时期待回调里能返回东西，否则回调里的逻辑可能触发不了。
                         mConnectSwitch.release();
-                        mIsConnectingDeviceByUser.set(false);
+                        mIsConnectingDeviceByClient.set(false);
                         listener.onConnectSuccess(mBtGatt);
                         return;
                     } else {
@@ -242,16 +243,18 @@ public class TgiBleService extends Service {
                             gatt.discoverServices();
                         } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                             //连接失败，退出。
-                            //这是启动连接时失败的情况。关闭流程，返回错误。
-                            if (mIsConnectingDeviceByUser.get()) {
+                            //这是首次启动连接时失败的情况。关闭流程，返回错误。
+                            if (mIsConnectingDeviceByClient.get()) {
                                 gatt.close();
                                 mConnectSwitch.release();
-                                mIsConnectingDeviceByUser.set(false);
+                                mIsConnectingDeviceByClient.set(false);
                                 listener.onConnectFail("Fail to connect target device on connecting stage.");
                             } else {
-                                //这是由于信号不良造成连接中断，自动重连。
-                                //自动重连只需一步：重新连接
+                                //这是由于信号不良或对方蓝牙设备重启造成连接中断，自动重连。
+                                //自动重拾信号第一步：重新连接
                                 if (mBtGatt != null) {
+                                    mConnectSwitch.tryAcquire();
+                                    mIsReConnectingDeviceByAI.set(true);
                                     mBtGatt.connect();
                                 }
                             }
@@ -262,24 +265,40 @@ public class TgiBleService extends Service {
                     public void onServicesDiscovered(BluetoothGatt gatt, int status) {
                         super.onServicesDiscovered(gatt, status);
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
                             mBtGatt = gatt;
                             mConnectSwitch.release();
-                            mIsConnectingDeviceByUser.set(false);
-                            listener.onConnectSuccess(gatt);
+                            //判断当前连接是否由客户端主动发起的，如果是：
+                            //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
+                            if (mIsConnectingDeviceByClient.compareAndSet(true, false)) {
+                                listener.onConnectSuccess(gatt);
+                            } else if (mIsReConnectingDeviceByAI.compareAndSet(true, false)) {
+                                //接着判断是否由本库自动重连发起的，如果是：
+                                //自动重拾信号第二步：重新设置通知
+                                //在远程蓝牙设备被关闭后重启的情况下，虽然在我方设备内存中还留存着通知的回调，但远程设备
+                                //由于重新上电，之前设置的通知内容都被清除了，所以要重新给远程设备设置通知。
+                                restoreNotifications(mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet());
+                                //自动重拾信号流程到此结束。
+                            }
+
                         } else if (status == BluetoothGatt.GATT_FAILURE) {
                             //连接失败，退出。
                             gatt.close();
                             mConnectSwitch.release();
-                            mIsConnectingDeviceByUser.set(false);
-                            listener.onConnectFail("Target device is connected, but fails to discover services.");
+                            //如果是用户端首次连接失败，返回错误信息。
+                            if(mIsConnectingDeviceByClient.compareAndSet(true,false)){
+                                listener.onConnectFail("Target device is connected, but fails to discover services.");
+                            }else if(mIsReConnectingDeviceByAI.get()&&mNotifications!=null){
+                                //如果是本库自动重连失败，这里再次连接，这样一直到成功为止。
+                                autoReconnect(mNotifications);
+                            }
+
                         }
                     }
                 };
                 //不需要clear()，重新连接时还要用上里面回调。
-//                if(mTgiBtGattCallback!=null){
-//                    mTgiBtGattCallback.clear();
-//                }
+                //                if(mTgiBtGattCallback!=null){
+                //                    mTgiBtGattCallback.clear();
+                //                }
                 mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
                 try {
                     if (checkBtBondedBeforeProceed(device)) {
@@ -294,7 +313,7 @@ public class TgiBleService extends Service {
                     //把异常都放到回调中去。
                     e.printStackTrace();
                     mConnectSwitch.release();
-                    mIsConnectingDeviceByUser.set(false);
+                    mIsConnectingDeviceByClient.set(false);
                     listener.onConnectFail(e.getMessage());
                 }
             } else {
@@ -447,7 +466,7 @@ public class TgiBleService extends Service {
         public void onReceive(Context context, Intent intent) {
             //本机蓝牙 初始化第四步：实时监听蓝牙启动状态，如果发现被关闭了，将重新打开。
             //至此1-4步完成了本机蓝牙的初始化。
-            //以下是蓝牙模块被关闭后，程序自动重连的逻辑：
+            //以下是本机蓝牙模块被关闭后，程序自动重连的逻辑：
             int previousState = intent.getIntExtra(BluetoothAdapter.EXTRA_PREVIOUS_STATE, -1);
             mBtEnableState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1);
 
@@ -457,25 +476,24 @@ public class TgiBleService extends Service {
             } else if (previousState == BluetoothAdapter.STATE_TURNING_ON && mBtEnableState == BluetoothAdapter.STATE_ON
                     || previousState == BluetoothAdapter.STATE_OFF && mBtEnableState == BluetoothAdapter.STATE_ON) {
                 //蓝牙自动重连步骤2：如果状态是从"正在打开"到"打开"或者从"关闭"到"打开"，说明蓝牙模块刚被打开。
-                //这里需要做一下判断：是否属于蓝牙模块被关闭后又被这个库重新打开的情况？
+                //这里需要做一下判断：是否属于蓝牙模块被认用户关闭后又被这个库强制打开的情况？
                 //如果是，尝试重新连接
                 if (mBtGatt != null) {
-                    reconnect();
+                    //先把通知清单提取出来，因为待会mTgiBtGattCallback将被重新初始化,这里需要事先备份。
+                    mNotifications = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
+                    autoReconnect(mNotifications);
                 }
                 //如果不是，什么也不用做。
             }
         }
     }
 
-    private void reconnect() {
+    private void autoReconnect(final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
         //蓝牙自动重连步骤3：尝试重新连接之前的蓝牙设备。
         //这种情况下如果直接调用mBtGatt的connect()会报android.os.DeadObjectException。
         //需要重新初始化adapter，重新连接蓝牙
         if (mTgiBleServiceBinder != null && mTgiBtGattCallback != null) {
             BluetoothDevice device = mBtGatt.getDevice();
-            //先把通知清单提取出来，因为待会mTgiBtGattCallback将被重新初始化,这里需要事先备份。
-            final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications =
-                    mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
             //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
             mBtGatt = null;
             //蓝牙自动重连步骤4：重新连接蓝牙
@@ -492,7 +510,7 @@ public class TgiBleService extends Service {
                         @Override
                         public void onConnectFail(String errorMsg) {
                             super.onConnectFail(errorMsg);
-                            //如果连接失败，是否要再重新连接？
+                            //如果连接失败，不需要在这里处理重新连接。在底层回调中判断。
                         }
                     }
             );
@@ -500,7 +518,7 @@ public class TgiBleService extends Service {
     }
 
     private void restoreNotifications(Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
-        //蓝牙自动重连步骤7：遍历之前的通知清单，重新设置通知
+        //蓝牙自动重连步骤6：遍历之前的通知清单，重新设置通知
         for (Map.Entry<String, TgiToggleNotificationSession> entry : notifications) {
             String key = entry.getKey();
             final TgiToggleNotificationSession value = entry.getValue();
@@ -517,7 +535,7 @@ public class TgiBleService extends Service {
                 );
             }
         }
-        //蓝牙自动重连步骤8：流程结束
+        //蓝牙自动重连步骤7：通知设置完毕，流程结束
     }
 
     private class DevicePairingStatesReceiver extends BroadcastReceiver {

@@ -114,15 +114,19 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.close();
                     }
                 } else {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("Fails to ");
-                    if (toTurnOn) {
-                        sb.append("enable notification.");
-                    } else {
-                        sb.append("disable notification.");
-                    }
-                    session.getTgiToggleNotificationCallback().onError(sb.toString());
-                    session.close();
+                    //如果不成功，一直设置到成功为止。
+                    session.start(session.getTgiToggleNotificationCallback());
+                    break;
+//                    StringBuilder sb = new StringBuilder();
+//                    sb.append("Fails to ");
+//                    if (toTurnOn) {
+//                        sb.append("enable notification.");
+//                    } else {
+//                        sb.append("disable notification.");
+//                    }
+//                    sb.append(" Status Code=").append(status);
+//                    session.getTgiToggleNotificationCallback().onError(sb.toString());
+//                    session.close();
                 }
                 iterator.remove();
             }
@@ -194,7 +198,6 @@ class TgiBtGattCallback extends BluetoothGattCallback {
 
     //这个函数专门为了蓝牙模块被关闭后又被本库重新打开后，后续重新连接而设。
     HashMap<String, TgiToggleNotificationSession> getCurrentNotificationCallbacks() {
-        showLog("mCharChangedListeners size=" + mCharChangedListeners.size());
         return mCharChangedListeners;
     }
 }
