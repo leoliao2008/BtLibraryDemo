@@ -16,21 +16,34 @@ class SessionUUIDGenerator {
 
     static String genReadWriteSessionUUID(BluetoothDevice device, BluetoothGattCharacteristic btChar) {
         return new StringBuilder().append(device.getAddress())
-                .append("-")
+                .append("@")
                 .append(btChar.getService().getUuid().toString())
-                .append("-")
+                .append("@")
                 .append(btChar.getUuid().toString())
                 .toString();
     }
 
     static String genToggleNotificationSessionUUID(BluetoothDevice device, BluetoothGattDescriptor descriptor) {
         return new StringBuilder().append(device.getAddress())
-                .append("-")
+                .append("@")
                 .append(descriptor.getCharacteristic().getService().getUuid().toString())
-                .append("-")
+                .append("@")
                 .append(descriptor.getCharacteristic().getUuid().toString())
-                .append("-")
+                .append("@")
                 .append(descriptor.getUuid().toString())
                 .toString();
+    }
+
+    /**
+     * 解析NotificationSessionUUID，返回一个长度为4的字符串数组，下标0-3分别表示bt device address, service uuid,char uuid,descriptor uuid。
+     * @param notificationSessionUUID
+     * @return
+     */
+    static String[] decypherNotificationSessionUUID(String notificationSessionUUID) {
+        String[] split = notificationSessionUUID.split("@");
+        if (split.length == 4) {
+            return split;
+        }
+        return null;
     }
 }

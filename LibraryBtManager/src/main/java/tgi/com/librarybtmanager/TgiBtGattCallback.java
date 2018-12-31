@@ -55,7 +55,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                     byte[] value = characteristic.getValue();
                     session.getTgiReadCharCallback().onCharRead(characteristic, value.clone());
                 } else {
-                    session.getTgiReadCharCallback().onError("Target characteristic read fails. Status code:"+status);
+                    session.getTgiReadCharCallback().onError("Target characteristic read fails. Status code:" + status);
                 }
                 session.close();
                 iterator.remove();
@@ -71,13 +71,6 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         //支持同时写入多个特性，不冲突
         String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
         Iterator<TgiWriteCharSession> iterator = mWriteSessions.iterator();
-//        byte[] value = characteristic.getValue();
-//        showLog("onCharacteristicWrite:");
-//        StringBuilder sb=new StringBuilder();
-//        for(byte temp:value){
-//            sb.append("0x").append(Integer.toHexString(temp)).append(" ");
-//        }
-//        showLog(sb.toString());
         while (iterator.hasNext()) {
             TgiWriteCharSession session = iterator.next();
             if (session.getSessionUUID().equals(uuid)) {
@@ -87,16 +80,6 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                 } else {
                     session.getTgiWriteCharCallback().onWriteFailed("Target characteristic write fails: data is not fully written.");
                 }
-//                if (status == BluetoothGatt.GATT_SUCCESS) {
-//                    byte[] valueBeWritten = characteristic.getValue();
-//                    if (Arrays.equals(session.getWriteContent(), valueBeWritten)) {
-//                        session.getTgiWriteCharCallback().onWriteSuccess(characteristic);
-//                    } else {
-//                        session.getTgiWriteCharCallback().onWriteFailed("Data is not fully written.");
-//                    }
-//                } else {
-//                    session.getTgiWriteCharCallback().onWriteFailed("Target characteristic write fails. Status code:"+status);
-//                }
                 session.close();
                 iterator.remove();
                 break;
@@ -123,9 +106,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.getTgiToggleNotificationCallback().onError("The value of descriptor dose not match the target value.");
                     }
                     //更新map内容，这是为了onCharacteristicChanged中注册了通知的char的值发生变化时，用来传递变化的数据。
-                    //为什么key没有用到descriptor的UUID,而是只用了device地址和Char的UUID?因为在onCharChange()回调中，没有提供descriptor
-                    //的对象，无法实现完美匹配。
-                    String key = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), descriptor.getCharacteristic());
+                    String key = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice(), descriptor);
                     if (toTurnOn) {
                         mCharChangedListeners.put(key, session);
                     } else {
@@ -153,24 +134,20 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         super.onCharacteristicChanged(gatt, characteristic);
         //在mCharChangedListeners根据UUID找到之前注册通知的回调，逐个返回最新数据。
         String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
-        if(mCharChangedListeners.size()>0){
+        if (mCharChangedListeners.size() > 0) {
             Iterator<Map.Entry<String, TgiToggleNotificationSession>> iterator = mCharChangedListeners.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, TgiToggleNotificationSession> next = iterator.next();
                 String key = next.getKey();
-                if (key.equals(uuid)) {
+                //key还包含了descriptor的UUID，因此不会和uuid一样，用contains()判断即可。
+                //为什么要保留descriptor的UUID？蓝牙模块关闭后重新打开时要用来重新设置通知
+                if (key.contains(uuid)) {
                     TgiToggleNotificationSession session = next.getValue();
                     if (session != null) {
                         session.getTgiToggleNotificationCallback().onCharChanged(gatt, characteristic);
                     }
-                }else {
-                    showLog("Key not matched: ");
-                    showLog("uuid="+uuid);
-                    showLog("uuid of history log:"+key);
                 }
             }
-        }else {
-            showLog("mCharChangedListeners size=0");
         }
 
 
@@ -215,5 +192,9 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         mCharChangedListeners.clear();
     }
 
-
+    //这个函数专门为了蓝牙模块被关闭后又被本库重新打开后，后续重新连接而设。
+    HashMap<String, TgiToggleNotificationSession> getCurrentNotificationCallbacks() {
+        showLog("mCharChangedListeners size=" + mCharChangedListeners.size());
+        return mCharChangedListeners;
+    }
 }
