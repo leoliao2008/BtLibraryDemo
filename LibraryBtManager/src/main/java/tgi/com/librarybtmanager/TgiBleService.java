@@ -473,7 +473,7 @@ public class TgiBleService extends Service {
         //需要重新初始化adapter，重新连接蓝牙
         if (mTgiBleServiceBinder != null && mTgiBtGattCallback != null) {
             BluetoothDevice device = mBtGatt.getDevice();
-            //先把通知清单提取出来，因为待会mTgiBtGattCallback将被重新初始化,这些清单会全部清掉,这里需要事先备份。
+            //先把通知清单提取出来，因为待会mTgiBtGattCallback将被重新初始化,这里需要事先备份。
             final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications =
                     mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
             //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
@@ -492,6 +492,7 @@ public class TgiBleService extends Service {
                         @Override
                         public void onConnectFail(String errorMsg) {
                             super.onConnectFail(errorMsg);
+                            //如果连接失败，是否要再重新连接？
                         }
                     }
             );
@@ -499,7 +500,7 @@ public class TgiBleService extends Service {
     }
 
     private void restoreNotifications(Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
-        //遍历之前的通知清单
+        //蓝牙自动重连步骤7：遍历之前的通知清单，重新设置通知
         for (Map.Entry<String, TgiToggleNotificationSession> entry : notifications) {
             String key = entry.getKey();
             final TgiToggleNotificationSession value = entry.getValue();
@@ -515,8 +516,8 @@ public class TgiBleService extends Service {
                         value.getTgiToggleNotificationCallback()
                 );
             }
-            //蓝牙自动重连步骤6：流程结束
         }
+        //蓝牙自动重连步骤8：流程结束
     }
 
     private class DevicePairingStatesReceiver extends BroadcastReceiver {
