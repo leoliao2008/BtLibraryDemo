@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
@@ -44,6 +45,7 @@ public class TgiBleService extends Service {
     private AtomicBoolean mIsConnecting = new AtomicBoolean(false);
     //以下两个对象提取出来是为了蓝牙被关闭又重启后，能自动重连。
     private TgiBleServiceBinder mTgiBleServiceBinder;
+    private Handler mHandler;
 
 
     //bindService 生命流程1
@@ -52,6 +54,7 @@ public class TgiBleService extends Service {
     public void onCreate() {
         super.onCreate();
         LogUtils.showLog("service is created.");
+        mHandler=new Handler();
         mBleClientModel = new BleClientModel();
         mBtEnableState = mBleClientModel.isBtEnabled() ? BluetoothAdapter.STATE_ON : BluetoothAdapter.STATE_OFF;
         //本机蓝牙初始化第一步：监听本机蓝牙打开状态
@@ -258,7 +261,7 @@ public class TgiBleService extends Service {
                                             = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                                     showLog("当前注册通知数量："+notifications.size());
                                     showLog("开始重新连接");
-                                    autoReconnect(device, notifications);
+                                    reconnect(device, notifications);
                                 }
                             }
                         }
@@ -459,12 +462,14 @@ public class TgiBleService extends Service {
 
             if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
                 //蓝牙自动打开步骤1：如果当前状态是"关闭"，说明某些不可预知的意外导致蓝牙模块关闭了，这里申请重新打开
+                showLog("蓝牙模块被关闭了。申请重新打开中...");
                 enableBt();
             } else if (previousState == BluetoothAdapter.STATE_TURNING_ON && mBtEnableState == BluetoothAdapter.STATE_ON
                     || previousState == BluetoothAdapter.STATE_OFF && mBtEnableState == BluetoothAdapter.STATE_ON) {
                 //蓝牙自动打开骤2：如果状态是从"正在打开"到"打开"或者从"关闭"到"打开"，说明蓝牙模块刚被打开。
                 //这里需要做一下判断：是否属于蓝牙模块被认用户关闭后又被这个库强制打开的情况？
                 //如果是，尝试重新连接
+                showLog("蓝牙模块被打开了。");
                 if (mBtGatt != null) {
                     //先把通知清单提取出来，因为待会mTgiBtGattCallback将被重新初始化,这里需要事先备份。
                     showLog("开始重连");
@@ -472,20 +477,20 @@ public class TgiBleService extends Service {
                             mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                     showLog("当前注册通知数：" + notifications.size());
                     BluetoothDevice device = mBtGatt.getDevice();
-                    //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
-                    mBtGatt = null;
-                    autoReconnect(device,notifications);
+                    reconnect(device,notifications);
                 }
                 //如果不是，什么也不用做。
             }
         }
     }
 
-    private void autoReconnect(final BluetoothDevice device, final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
+    private void reconnect(final BluetoothDevice device, final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
         //蓝牙自动打开步骤3：尝试重新连接之前的蓝牙设备。
         //这种情况下如果直接调用mBtGatt的connect()会报android.os.DeadObjectException。
         //需要重新初始化adapter，重新连接蓝牙
         if (mTgiBleServiceBinder != null) {
+            //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
+            mBtGatt = null;
             //蓝牙自动打开骤4：重新连接蓝牙
             mTgiBleServiceBinder.connectDevice(
                     device,
@@ -504,7 +509,14 @@ public class TgiBleService extends Service {
                             //如果连接失败，自动重连
                             showLog("重新连接失败：" + errorMsg);
                             showLog("重新连接。。。");
-                            autoReconnect(device, notifications);
+                            //需要延迟一秒后重连，如果不延迟，不间断地重连，由于抛异常太快了，积得太多，在有些机子上会StackOverFlow
+                            mHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    reconnect(device, notifications);
+                                }
+                            }, 1000);
+
                         }
                     }
             );
