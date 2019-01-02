@@ -61,17 +61,13 @@ public class ConnectDeviceActivity extends AppCompatActivity {
             }
         };
         mListView.setAdapter(mAdapter);
-    }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
         connectDevice();
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onDestroy() {
+        super.onDestroy();
         disconnectDevice();
     }
 

@@ -138,6 +138,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         super.onCharacteristicChanged(gatt, characteristic);
         //在mCharChangedListeners根据UUID找到之前注册通知的回调，逐个返回最新数据。
         String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
+        showLog("onCharacteristicChanged");
         if (mCharChangedListeners.size() > 0) {
             Iterator<Map.Entry<String, TgiToggleNotificationSession>> iterator = mCharChangedListeners.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -148,6 +149,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                 if (key.contains(uuid)) {
                     TgiToggleNotificationSession session = next.getValue();
                     if (session != null) {
+                        showLog("update data in onCharacteristicChanged()");
                         session.getTgiToggleNotificationCallback().onCharChanged(gatt, characteristic);
                     }
                 }

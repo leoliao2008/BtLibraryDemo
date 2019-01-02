@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 
@@ -44,6 +45,7 @@ public class TgiBleService extends Service {
     private AtomicBoolean mIsConnecting = new AtomicBoolean(false);
     //以下两个对象提取出来是为了蓝牙被关闭又重启后，能自动重连。
     private TgiBleServiceBinder mTgiBleServiceBinder;
+    private Handler mHandler;
 
 
     //bindService 生命流程1
@@ -52,6 +54,7 @@ public class TgiBleService extends Service {
     public void onCreate() {
         super.onCreate();
         LogUtils.showLog("service is created.");
+        mHandler=new Handler();
         mBleClientModel = new BleClientModel();
         mBtEnableState = mBleClientModel.isBtEnabled() ? BluetoothAdapter.STATE_ON : BluetoothAdapter.STATE_OFF;
         //本机蓝牙初始化第一步：监听本机蓝牙打开状态
@@ -258,7 +261,7 @@ public class TgiBleService extends Service {
                                             = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                                     showLog("当前注册通知数量："+notifications.size());
                                     showLog("开始重新连接");
-                                    autoReconnect(device, notifications);
+                                    reconnect(device, notifications);
                                 }
                             }
                         }
@@ -383,18 +386,21 @@ public class TgiBleService extends Service {
                     BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
                     if (service == null) {
                         callback.onError("Target service cannot be reached.");
+                        showLog("Target service cannot be reached.");
                         return;
                     }
 
                     BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
                     if (btChar == null) {
                         callback.onError("Target characteristic cannot be reached.");
+                        showLog("Target characteristic cannot be reached.");
                         return;
                     }
 
                     BluetoothGattDescriptor btDesc = btChar.getDescriptor(UUID.fromString(descUUID));
                     if (btDesc == null) {
                         callback.onError("Target descriptor cannot be reached.");
+                        showLog("Target descriptor cannot be reached.");
                         return;
                     }
 
@@ -410,6 +416,7 @@ public class TgiBleService extends Service {
             } catch (Exception e) {
                 e.printStackTrace();
                 callback.onError(e.getMessage());
+                showLog("onError: "+e.getMessage());
             }
         }
 
@@ -472,20 +479,20 @@ public class TgiBleService extends Service {
                             mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                     showLog("当前注册通知数：" + notifications.size());
                     BluetoothDevice device = mBtGatt.getDevice();
-                    //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
-                    mBtGatt = null;
-                    autoReconnect(device,notifications);
+                    reconnect(device,notifications);
                 }
                 //如果不是，什么也不用做。
             }
         }
     }
 
-    private void autoReconnect(final BluetoothDevice device, final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
+    private void reconnect(final BluetoothDevice device, final Set<Map.Entry<String, TgiToggleNotificationSession>> notifications) {
         //蓝牙自动打开步骤3：尝试重新连接之前的蓝牙设备。
         //这种情况下如果直接调用mBtGatt的connect()会报android.os.DeadObjectException。
         //需要重新初始化adapter，重新连接蓝牙
         if (mTgiBleServiceBinder != null) {
+            //这里mBtGatt直接设为null就可以了，如果调用mBtGatt.close()的话会报android.os.DeadObjectException异常。
+            mBtGatt = null;
             //蓝牙自动打开骤4：重新连接蓝牙
             mTgiBleServiceBinder.connectDevice(
                     device,
@@ -504,7 +511,14 @@ public class TgiBleService extends Service {
                             //如果连接失败，自动重连
                             showLog("重新连接失败：" + errorMsg);
                             showLog("重新连接。。。");
-                            autoReconnect(device, notifications);
+                            //这里必须延迟一会再重新连接，否则在有些机子上会因为不断重连造成stackOverFlow
+                            mHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    reconnect(device, notifications);
+                                }
+                            },1000);
+
                         }
                     }
             );
