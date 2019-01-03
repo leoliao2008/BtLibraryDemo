@@ -61,9 +61,15 @@ public class TgiBleService extends Service {
     }
 
     private void registerReceivers() {
+        //监听蓝牙模块开关
         mBtConnStatesReceiver = new TgiBtEnableStatesReceiver();
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         registerReceiver(mBtConnStatesReceiver, filter);
+
+        //监听蓝牙配对变更情况
+        IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        mPairingStatesReceiver = new DevicePairingStatesReceiver();
+        registerReceiver(mPairingStatesReceiver, intentFilter);
     }
 
     //startService 生命流程2
@@ -178,9 +184,6 @@ public class TgiBleService extends Service {
                     listener.onParingSessionBegin();
                     //蓝牙配对第3步：注册广播接受者监听配对结果
                     mDeviceParingStateListener = listener;
-                    IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
-                    mPairingStatesReceiver = new DevicePairingStatesReceiver();
-                    registerReceiver(mPairingStatesReceiver, intentFilter);
                     //蓝牙配对第4步：开始正式配对,配对结果通过广播接受者知悉。
                     boolean isInitSuccess = mBleClientModel.pairDevice(device);
                     if (!isInitSuccess) {
@@ -193,11 +196,28 @@ public class TgiBleService extends Service {
                             mPairingStatesReceiver = null;
                         }
                     }
-
                 }
             } catch (BtNotEnabledException e) {
                 listener.onError(e.getMessage());
             }
+        }
+
+        //利用反射配对蓝牙
+        public boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
+            return mBleClientModel.pairDeviceWithoutUserConsent(device);
+        }
+
+        public boolean pairDeviceWithoutUserConsent(String deviceAddress) {
+            return pairDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(deviceAddress));
+        }
+
+        //利用反射取消配对了的蓝牙
+        public boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
+            return mBleClientModel.removePairedDeviceWithoutUserConsent(device);
+        }
+
+        public boolean removePairedDeviceWithoutUserConsent(String deviceAddress) {
+            return removePairedDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(deviceAddress));
         }
 
         //已知蓝牙设备地址，连接蓝牙设备
@@ -316,12 +336,24 @@ public class TgiBleService extends Service {
                     mIsConnecting.set(false);
                     showLog(e.getMessage());
                     //这里不能自动重连，因为要留一个回调，在更改绑定设备的时候，在应用层重新连接新的设备。
-                    listener.onConnectFail(e.getMessage());
+                    listener.onConnectFail(e.getMessage());//todo 这里想办法处理，不要返回fail
                 }
             } else {
                 mConnectSwitch.release();
             }
+        }
 
+        public void swarpDevice(BluetoothDevice newDevice) {
+            try {
+                if (checkBtEnableBeforeProceed()) {
+                    Set<Map.Entry<String, TgiToggleNotificationSession>> notifications
+                            = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
+                    disConnectDevice();
+                    reconnect(newDevice, notifications);
+                }
+            } catch (BtNotEnabledException e) {
+                e.printStackTrace();
+            }
         }
 
         //写入特性
@@ -576,11 +608,11 @@ public class TgiBleService extends Service {
                 if (currentState == BluetoothDevice.BOND_BONDED || currentState == BluetoothDevice.BOND_NONE) {
                     mDeviceParingStateListener.onParingSessionEnd();
                     mDeviceParingStateListener = null;
-                    //蓝牙配对第6步：释放资源，流程结束。
-                    if (mPairingStatesReceiver != null) {
-                        unregisterReceiver(mPairingStatesReceiver);
-                        mPairingStatesReceiver = null;
-                    }
+//                    //蓝牙配对第6步：释放资源，流程结束。
+//                    if (mPairingStatesReceiver != null) {
+//                        unregisterReceiver(mPairingStatesReceiver);
+//                        mPairingStatesReceiver = null;
+//                    }
                 }
             }
         }
