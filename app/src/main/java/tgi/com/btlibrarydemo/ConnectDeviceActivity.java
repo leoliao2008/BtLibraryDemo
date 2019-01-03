@@ -26,7 +26,7 @@ import tgi.com.librarybtmanager.TgiReadCharCallback;
 import tgi.com.librarybtmanager.TgiToggleNotificationCallback;
 import tgi.com.librarybtmanager.TgiWriteCharCallback;
 
-public class ConnectDeviceActivity extends AppCompatActivity {
+public class ConnectDeviceActivity extends BaseActionBarActivity {
     private static final String BT_DEVICE_ADDRESS="BT_DEVICE_ADDRESS";
     private ListView mListView;
     private ArrayList<String> mLogs =new ArrayList<>();

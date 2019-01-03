@@ -16,6 +16,7 @@ import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
 
 import java.util.Map;
@@ -39,11 +40,10 @@ public class TgiBleService extends Service {
     private int mBtEnableState;
     private DevicePairingStatesReceiver mPairingStatesReceiver;
     private DeviceParingStateListener mDeviceParingStateListener;
-    private BluetoothGatt mBtGatt;
+    private volatile BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
     private TgiBtGattCallback mTgiBtGattCallback;
     private AtomicBoolean mIsConnecting = new AtomicBoolean(false);
-    //以下两个对象提取出来是为了蓝牙被关闭又重启后，能自动重连。
     private TgiBleServiceBinder mTgiBleServiceBinder;
     private Handler mHandler;
 
@@ -245,17 +245,25 @@ public class TgiBleService extends Service {
                             gatt.discoverServices();
                         } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                             showLog("连接中断。");
-                            //连接失败，退出。
-                            BluetoothDevice device = gatt.getDevice();
+                            //连接失败。
+                            final BluetoothDevice device = gatt.getDevice();
                             gatt.close();
                             if (mIsConnecting.get()) {
                                 mConnectSwitch.release();
                                 mIsConnecting.set(false);
                                 listener.onConnectFail("Fail to connect target device on connecting stage.");
+                                showLog("Fail to connect target device on connecting stage.");
+                                //连接失败后重新连接
+                                mHandler.postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        mTgiBleServiceBinder.connectDevice(device,listener);
+                                    }
+                                },1000);
+
                             } else {
                                 //这是由于信号不良或对方蓝牙设备重启造成连接中断，自动重连。
                                 if (mBtGatt != null && mTgiBtGattCallback != null) {
-                                    //mBtGatt.connect();
                                     showLog("信号差或者远程蓝牙设备被关闭了。");
                                     Set<Map.Entry<String, TgiToggleNotificationSession>> notifications
                                             = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
@@ -268,7 +276,7 @@ public class TgiBleService extends Service {
                     }
 
                     @Override
-                    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                    public void onServicesDiscovered(final BluetoothGatt gatt, int status) {
                         super.onServicesDiscovered(gatt, status);
                         mConnectSwitch.release();
                         mIsConnecting.set(false);
@@ -279,16 +287,19 @@ public class TgiBleService extends Service {
 
                         } else if (status == BluetoothGatt.GATT_FAILURE) {
                             //连接失败，退出。
-                            gatt.close();
-                            listener.onConnectFail("Target device is connected, but fails to discover services.");
+                            showLog("连接时无法读取服务列表，连接失败。开始重新连接......");
+//                            gatt.close();
+//                            listener.onConnectFail("Target device is connected, but fails to discover services.");
+                            mHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    gatt.discoverServices();
+                                }
+                            },1000);
 
                         }
                     }
                 };
-                //不需要clear()，重新连接时还要用上里面回调。
-                //                if(mTgiBtGattCallback!=null){
-                //                    mTgiBtGattCallback.clear();
-                //                }
                 mTgiBtGattCallback = new TgiBtGattCallback(bluetoothGattCallback);
                 try {
                     if (checkBtBondedBeforeProceed(device)) {
@@ -341,6 +352,7 @@ public class TgiBleService extends Service {
                 e.printStackTrace();
                 //把所有异常的信息都返回到回调中。
                 callback.onWriteFailed(e.getMessage());
+                showLog("写入失败："+e.getMessage());
             }
 
         }
@@ -355,11 +367,13 @@ public class TgiBleService extends Service {
                     BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
                     if (service == null) {
                         callback.onError("Target service cannot be reached.");
+                        showLog("写入失败，无法找到服务："+serviceUUID);
                         return;
                     }
                     BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
                     if (btChar == null) {
                         callback.onError("Target characteristic cannot be reached.");
+                        showLog("写入失败，无法找到特征："+charUUID);
                         return;
                     }
                     //读取特性第三步：正式开始读取
@@ -384,23 +398,29 @@ public class TgiBleService extends Service {
                 if (checkBtConnectionBeforeProceed()) {
                     //注册/取消注册通知第二步：检查对应的服务，特性和描述是否存在
                     BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
-                    if (service == null) {
-                        callback.onError("Target service cannot be reached.");
-                        showLog("Target service cannot be reached.");
-                        return;
+//                    if (service == null) {
+//                        callback.onError("Target service cannot be reached.");
+//                        showLog("无法找到指定服务"+serviceUUID);
+//                        return;
+//                    }
+                    while (service==null){
+                        SystemClock.sleep(500);
+                        service = mBtGatt.getService(UUID.fromString(serviceUUID));
+                        showLog("无法找到指定服务"+serviceUUID);
                     }
 
                     BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
                     if (btChar == null) {
                         callback.onError("Target characteristic cannot be reached.");
-                        showLog("Target characteristic cannot be reached.");
+                        showLog("无法找到指定特性"+charUUID);
+
                         return;
                     }
 
                     BluetoothGattDescriptor btDesc = btChar.getDescriptor(UUID.fromString(descUUID));
                     if (btDesc == null) {
                         callback.onError("Target descriptor cannot be reached.");
-                        showLog("Target descriptor cannot be reached.");
+                        showLog("无法找到指定描述"+descUUID);
                         return;
                     }
 
@@ -547,7 +567,7 @@ public class TgiBleService extends Service {
         //蓝牙自动打开步骤7：通知设置完毕，流程结束
     }
 
-    private void showLog(String msg) {
+    protected void showLog(String msg) {
         LogUtils.showLog(msg);
     }
 
