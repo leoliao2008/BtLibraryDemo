@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Binder;
+import android.os.DeadObjectException;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
@@ -45,6 +46,7 @@ public class TgiBleService extends Service {
     private AtomicBoolean mIsConnecting = new AtomicBoolean(false);
     private TgiBleServiceBinder mTgiBleServiceBinder;
     private Handler mHandler;
+    private AtomicBoolean mIsExpectingParing = new AtomicBoolean(false);
 
 
     //bindService 生命流程1
@@ -56,7 +58,7 @@ public class TgiBleService extends Service {
         mHandler = new Handler();
         mBleClientModel = new BleClientModel();
         mBtEnableState = mBleClientModel.isBtEnabled() ? BluetoothAdapter.STATE_ON : BluetoothAdapter.STATE_OFF;
-        //本机蓝牙初始化第一步：监听本机蓝牙打开状态
+        //本机蓝牙初始化第一步：监听蓝牙各种状态
         registerReceivers();
     }
 
@@ -120,9 +122,8 @@ public class TgiBleService extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceivers();
-        if (mBtGatt != null) {
-            mBtGatt.close();
-            mBtGatt = null;
+        if (mTgiBleServiceBinder != null) {
+            mTgiBleServiceBinder.disConnectDevice();
         }
         if (mTgiBtGattCallback != null) {
             mTgiBtGattCallback.clear();
@@ -183,6 +184,7 @@ public class TgiBleService extends Service {
                     //蓝牙配对第2步：自定义开始的准备工作（如显示进度圈等）
                     listener.onParingSessionBegin();
                     //蓝牙配对第3步：注册广播接受者监听配对结果
+                    mIsExpectingParing.set(true);
                     mDeviceParingStateListener = listener;
                     //蓝牙配对第4步：开始正式配对,配对结果通过广播接受者知悉。
                     boolean isInitSuccess = mBleClientModel.pairDevice(device);
@@ -243,14 +245,13 @@ public class TgiBleService extends Service {
                     String address = mBtGatt.getDevice().getAddress();
                     if (address.equals(device.getAddress())) {
                         // 因为当前已经连接上了目标设备，不需要重新连接，这里跑一下listener的成功回调即可。
-                        // 为什么要走一遍？因为调用方发起连接请求时期待回调里能返回东西，否则回调里的逻辑可能触发不了。
+                        // 为什么要走一遍？因为调用方发起连接请求时期待回调能被触发，否则回调里的逻辑可能触发不了。
                         mConnectSwitch.release();
                         mIsConnecting.set(false);
                         listener.onConnectSuccess(mBtGatt);
                         return;
                     } else {
-                        mBtGatt.close();
-                        mBtGatt = null;
+                        disConnectDevice();
                     }
                 }
                 //这个回调用来监听蓝牙设备连接后的各种情况
@@ -326,8 +327,7 @@ public class TgiBleService extends Service {
                         device.connectGatt(
                                 getApplicationContext(),
                                 false,
-                                //mTgiBtGattCallback，不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
-                                mTgiBtGattCallback);
+                                mTgiBtGattCallback);//mTgiBtGattCallback不只是连接时用，BluetoothGatt后续的读写操作也在这里获取相关回调。
                     }
                 } catch (Exception e) {
                     //把异常都放到回调中去。
@@ -335,17 +335,38 @@ public class TgiBleService extends Service {
                     mConnectSwitch.release();
                     mIsConnecting.set(false);
                     showLog(e.getMessage());
-                    //这里不能自动重连，因为要留一个回调，在更改绑定设备的时候，在应用层重新连接新的设备。
-                    listener.onConnectFail(e.getMessage());//todo 这里想办法处理，不要返回fail
+                    //Exception包含了以下两种情况：
+                    //1，蓝牙模块没有打开：如果在连接开始的时候，蓝牙模块已经是打开状态，那在连接成功后，如果蓝牙模块被关闭了，
+                    // 本库会重新打开蓝牙，并重启连接和重设通知，这部分逻辑已经在onConnectionStateChange（）回调中写好了，在这里不需要做任何处理；
+                    // 但如果一开始蓝牙就没启动将不再进行操作，这是因为本来这个后台服务在绑定的时候，就会检查蓝牙是否启动，如果没启动，会启动蓝牙。
+                    // 也就是说，不会有蓝牙模块一开始就没启动的情况。如果有，那是意料之外的情况，这里终止连接是合理的，否则一直死循环，上层也无法开始新的
+                    // 连接。
+                    //2，远程蓝牙配对不上：配对和连接是两个独立的过程，必须先配对好再连接，这是上层应用应当处理的逻辑，因此不会有未配对好就连接的情况；
+                    //这里抛出这个异常的情况还有一种：原先是配对好的，且连接上了，但后来因为某种原因取消配对了，连接中断，重连，发现配对不上，回到这里。
+                    //这种情况下如果还是强行配对之前的设备，再强行连接之前的设备和重新设置通知，明显不合理。应当中断连接，待上层应用处理配对更新后的逻辑。
+                    //综上所述，这里应该抛出异常，中断连接
+                    listener.onConnectFail(e.getMessage());
+
                 }
             } else {
                 mConnectSwitch.release();
             }
         }
 
-        public void swarpDevice(BluetoothDevice newDevice) {
+        /**
+         * 换一个相同型号的远程设备重新连接，之前的通知原封不动地自动重设。
+         */
+        public void swapDevice(String newDeviceAddress) {
+            swapDevice(mBleClientModel.getDeviceByAddress(newDeviceAddress));
+        }
+
+        /**
+         * 换一个相同型号的远程设备重新连接，之前的通知原封不动地自动重设。
+         * @param newDevice
+         */
+        public void swapDevice(BluetoothDevice newDevice) {
             try {
-                if (checkBtEnableBeforeProceed()) {
+                if (checkBtEnableBeforeProceed() && mTgiBtGattCallback != null) {
                     Set<Map.Entry<String, TgiToggleNotificationSession>> notifications
                             = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                     disConnectDevice();
@@ -469,8 +490,15 @@ public class TgiBleService extends Service {
 
         //断开连接
         public void disConnectDevice() {
-            if (mBtGatt != null) {
-                mBtGatt.close();
+            try {
+                if (mBtGatt != null) {
+                    mBtGatt.close();
+                }
+            } catch (Exception e) {
+                //考虑到远程蓝牙设备电源被关闭后，重新连接不上时如果退出程序会抛出
+                // DeadObjectException，这里做一下处理。
+                e.printStackTrace();
+            } finally {
                 mBtGatt = null;
             }
         }
@@ -604,15 +632,19 @@ public class TgiBleService extends Service {
             if (mDeviceParingStateListener != null) {
                 //蓝牙配对第5步：获取配对结果
                 mDeviceParingStateListener.onDevicePairingStateChanged(device, previousState, currentState);
-                //当最新结果为以下两种时，表示配对结果已经确定了，流程结束。
-                if (currentState == BluetoothDevice.BOND_BONDED || currentState == BluetoothDevice.BOND_NONE) {
+            }
+            //当最新结果为以下两种时，表示配对结果已经确定了。
+            if (currentState == BluetoothDevice.BOND_BONDED || currentState == BluetoothDevice.BOND_NONE) {
+                //这里要分两种情况判断:
+                //1,是否通过前面的pairDevice()函数发起的配对结果？
+                if (mIsExpectingParing.compareAndSet(true, false) && mDeviceParingStateListener != null) {
+                    //如果是，蓝牙配对第6步：释放资源，流程结束。
                     mDeviceParingStateListener.onParingSessionEnd();
                     mDeviceParingStateListener = null;
-//                    //蓝牙配对第6步：释放资源，流程结束。
-//                    if (mPairingStatesReceiver != null) {
-//                        unregisterReceiver(mPairingStatesReceiver);
-//                        mPairingStatesReceiver = null;
-//                    }
+                } else {
+                    //2,非通过本库操作的状况：是否有新的远程设备被配对了，而当前连接的蓝牙设备配对被取消了？
+                    //暂不考虑这种情况，因为新的设备不一定和之前设备型号一样（如电子秤和电饭煲），通知的UUID也不一定一样，这里不适合
+                    //做过多的处理。
                 }
             }
         }
