@@ -5,7 +5,14 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.pm.PackageManager;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 class BleClientModel {
 
@@ -65,5 +72,16 @@ class BleClientModel {
             e.printStackTrace();
         }
         return result;
+    }
+
+    @SuppressLint("MissingPermission")
+    public ArrayList<BluetoothDevice> getBondedDevices(){
+        ArrayList<BluetoothDevice> list=new ArrayList<>();
+        Set<BluetoothDevice> devices = BluetoothAdapter.getDefaultAdapter().getBondedDevices();
+        Iterator<BluetoothDevice> iterator = devices.iterator();
+        while (iterator.hasNext()){
+            list.add(iterator.next());
+        }
+        return list;
     }
 }
