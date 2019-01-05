@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
 import tgi.com.librarybtmanager.BtDeviceConnectListener;
-import tgi.com.librarybtmanager.DeviceParingStateListener;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiBleScanCallback;
 import tgi.com.librarybtmanager.TgiReadCharCallback;
@@ -85,55 +84,19 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                     boolean b = TgiBleManager.getInstance().removePairedDeviceWithoutUserConsent(device);
                     showLog("解除绑定：" + b);
                 } else {
-                    boolean b = TgiBleManager.getInstance().pairDeviceWithoutUserConsent(device);
-                    showLog("新增绑定：" + b);
-                    if (b) {
-                        TgiBleManager.getInstance().swapDevice(device);
-                    }
-//                    TgiBleManager.getInstance().pairDevice(device, new DeviceParingStateListener() {
-//                        int state = -1;
+//                    boolean b = TgiBleManager.getInstance().pairDeviceWithoutUserConsent(device);
+//                    showLog("新增绑定：" + b);
+//                    if (b) {
 //
-//                        @Override
-//                        public void onParingSessionBegin() {
-//                            super.onParingSessionBegin();
-//                            showLog("开始配对");
-//                        }
-//
-//                        @Override
-//                        public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
-//                            super.onDevicePairingStateChanged(device, previousState, currentState);
-//                            switch (currentState) {
-//                                case BluetoothDevice.BOND_NONE:
-//                                    showLog("配对：断开");
-//                                    break;
-//                                case BluetoothDevice.BOND_BONDED:
-//                                    showLog("配对：配对成功");
-//                                    break;
-//                                case BluetoothDevice.BOND_BONDING:
-//                                    showLog("配对：配对中。。。");
-//                                    break;
-//                            }
-//                            state = currentState;
-//                            if (state == BluetoothDevice.BOND_BONDED) {
-//                                TgiBleManager.getInstance().swapDevice(device);
-//                            }
-//                        }
-//
-//                        @Override
-//                        public void onParingSessionEnd() {
-//                            super.onParingSessionEnd();
-//                            showLog("结束配对");
-//                        }
-//
-//                        @Override
-//                        public void onError(String errorMsg) {
-//                            super.onError(errorMsg);
-//                            showLog("配对出错："+errorMsg);
-//                        }
-//                    });
+//                    }
+                    TgiBleManager.getInstance().pairAndConnectAnotherDeviceOfTheSameType(device);
                 }
-                mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
-
+                mRecyclerView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
+                    }
+                }, 1000);
             }
         });
 

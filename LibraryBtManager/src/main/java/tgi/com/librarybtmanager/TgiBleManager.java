@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SearchRecentSuggestionsProvider;
 import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.Handler;
@@ -223,13 +222,13 @@ public class TgiBleManager {
         }
     }
 
-    public void swapDevice(String deviceAddress){
-        swapDevice(mBleClientModel.getDeviceByAddress(deviceAddress));
+    public void pairAndConnectAnotherDeviceOfTheSameType(String deviceAddress){
+        pairAndConnectAnotherDeviceOfTheSameType(mBleClientModel.getDeviceByAddress(deviceAddress));
     }
 
-    public void swapDevice(BluetoothDevice device){
+    public void pairAndConnectAnotherDeviceOfTheSameType(BluetoothDevice device){
         if(checkIfServiceAvailable()){
-            mTgiBleServiceBinder.swapDevice(device);
+            mTgiBleServiceBinder.pairAndConnectToAnotherDeviceOfTheSameType(device);
         }else {
             showLog("Bt Service is not bonded.");
         }
