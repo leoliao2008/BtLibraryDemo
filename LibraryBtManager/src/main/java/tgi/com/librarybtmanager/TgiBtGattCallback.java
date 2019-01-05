@@ -76,8 +76,10 @@ class TgiBtGattCallback extends BluetoothGattCallback {
             if (session.getSessionUUID().equals(uuid)) {
                 byte[] valueBeWritten = characteristic.getValue();
                 if (Arrays.equals(session.getWriteContent(), valueBeWritten)) {
+                    showLog("写入成功。");
                     session.getTgiWriteCharCallback().onWriteSuccess(characteristic);
                 } else {
+                    showLog("写入失败：信息未能全部写入");
                     session.getTgiWriteCharCallback().onWriteFailed("Target characteristic write fails: data is not fully written.");
                 }
                 session.close();

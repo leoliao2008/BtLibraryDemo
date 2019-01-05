@@ -22,7 +22,7 @@ import tgi.com.librarybtmanager.DeviceParingStateListener;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiBleScanCallback;
 
-public class ScanDeviceActivity extends AppCompatActivity {
+public class ScanDeviceActivity extends BaseActionBarActivity {
     private ListView mListView;
     private ScanDeviceActivity mThis;
     private ArrayList<BluetoothDevice> mDevices = new ArrayList<>();

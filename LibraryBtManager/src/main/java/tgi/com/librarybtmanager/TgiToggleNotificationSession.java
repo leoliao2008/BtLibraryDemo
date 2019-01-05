@@ -53,6 +53,7 @@ public class TgiToggleNotificationSession {
         }
         mTgiToggleNotificationCallback = callback;
         mBtGattCallback.registerToggleNotificationSession(this);
+        //开始设置通知，后续步骤将会在TgiBtGattCallback的onDescriptorWrite回调中进行。
         isInitSuccess = mBluetoothGatt.writeDescriptor(mDescriptor);
         //如果一开始就无法启动流程，则直接结束，释放资源。
         if (!isInitSuccess) {

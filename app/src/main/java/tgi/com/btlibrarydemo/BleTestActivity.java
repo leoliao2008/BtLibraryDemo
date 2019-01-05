@@ -12,7 +12,7 @@ import android.view.View;
 import tgi.com.librarybtmanager.BleInitCallBack;
 import tgi.com.librarybtmanager.TgiBleManager;
 
-public class BleTestActivity extends AppCompatActivity {
+public class BleTestActivity extends BaseActionBarActivity {
     private TgiBleManager mTgiBleManager;
 
     public static void start(Context context) {

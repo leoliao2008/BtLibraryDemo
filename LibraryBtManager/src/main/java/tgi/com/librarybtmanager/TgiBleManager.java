@@ -6,11 +6,14 @@ import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SearchRecentSuggestionsProvider;
 import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.RequiresApi;
+
+import java.util.ArrayList;
 
 /**
  * <p><b>Author:</b></p>
@@ -163,6 +166,10 @@ public class TgiBleManager {
         }
     }
 
+    public ArrayList<BluetoothDevice> getBondedDevices(){
+        return mBleClientModel.getBondedDevices();
+    }
+
     public boolean checkIfDeviceBonded(String deviceAddress) {
         return checkIfDeviceBonded(mBleClientModel.getDeviceByAddress(deviceAddress));
     }
@@ -186,6 +193,22 @@ public class TgiBleManager {
         }
     }
 
+    public boolean pairDeviceWithoutUserConsent(String devAddress){
+        return pairDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(devAddress));
+    }
+
+    public boolean pairDeviceWithoutUserConsent(BluetoothDevice device){
+        return mBleClientModel.pairDeviceWithoutUserConsent(device);
+    }
+
+    public boolean removePairedDeviceWithoutUserConsent(String devAddress){
+        return removePairedDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(devAddress));
+    }
+
+    public boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device){
+        return mBleClientModel.removePairedDeviceWithoutUserConsent(device);
+    }
+
     //知道蓝牙地址，连接蓝牙设备
     public void connectDevice(String deviceAddress, BtDeviceConnectListener listener) {
         connectDevice(mBleClientModel.getDeviceByAddress(deviceAddress), listener);
@@ -198,6 +221,22 @@ public class TgiBleManager {
         }else {
             listener.onConnectFail("Bt Service is not bonded.");
         }
+    }
+
+    public void swapDevice(String deviceAddress){
+        swapDevice(mBleClientModel.getDeviceByAddress(deviceAddress));
+    }
+
+    public void swapDevice(BluetoothDevice device){
+        if(checkIfServiceAvailable()){
+            mTgiBleServiceBinder.swapDevice(device);
+        }else {
+            showLog("Bt Service is not bonded.");
+        }
+    }
+
+    private void showLog(String msg) {
+        LogUtils.showLog(msg);
     }
 
     //断开蓝牙
