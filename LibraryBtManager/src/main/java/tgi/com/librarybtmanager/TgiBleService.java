@@ -42,10 +42,12 @@ public class TgiBleService extends Service {
     private DeviceParingStateListener mDeviceParingStateListener;
     private volatile BluetoothGatt mBtGatt;
     private Semaphore mConnectSwitch = new Semaphore(1);
-    private TgiBtGattCallback mTgiBtGattCallback;
+    private volatile TgiBtGattCallback mTgiBtGattCallback;
     private AtomicBoolean mIsConnecting = new AtomicBoolean(false);
     private TgiBleServiceBinder mTgiBleServiceBinder;
     private Handler mHandler;
+    //默认蓝牙模块被关闭时会自动打开。可以设置成不打开。
+    private AtomicBoolean mIsAutoEnableBt = new AtomicBoolean(true);
 
 
     //bindService 生命流程1
@@ -145,6 +147,10 @@ public class TgiBleService extends Service {
 
 
     protected class TgiBleServiceBinder extends Binder {
+
+        public void setAutoEnableBt(boolean isToAutoEnable) {
+            mIsAutoEnableBt.set(isToAutoEnable);
+        }
 
         public void startScanDevice(TgiBleScanCallback callback) {
             try {
@@ -311,8 +317,7 @@ public class TgiBleService extends Service {
                                             e.printStackTrace();
                                             //蓝牙模块默认服务启动时会打开，且在广播接收者那里已经监听蓝牙模块开关了，
                                             // 当关闭时会有自动重连逻辑，因此这里不用做任何处理。
-                                            // 本库永远不会跳到这里，如果会跳到这里，需检查代码。
-                                            showLog("蓝牙模块关闭了，无法继续连接。本库永远不会跳到这里，如果会跳到这里，需检查代码。");
+                                            showLog("蓝牙模块关闭了，无法继续连接。等待蓝牙模块重新启动。");
                                         }
                                     }
                                 }, 1000);
@@ -330,6 +335,7 @@ public class TgiBleService extends Service {
                         mIsConnecting.set(false);
                         if (status == BluetoothGatt.GATT_SUCCESS) {
                             //连接蓝牙设备第五步：连接成功，读取服务列表成功。至此1-5步，连接流程结束。
+                            showLog("蓝牙连接成功了");
                             mBtGatt = gatt;
                             listener.onConnectSuccess(gatt);
 
@@ -381,7 +387,7 @@ public class TgiBleService extends Service {
         }
 
         /**
-         *  取消配对当前连接的设备，重新配对一台新的同型号的设备，并把之前的通知原封不动地自动重设。
+         * 取消配对当前连接的设备，重新配对一台新的同型号的设备，并把之前的通知原封不动地自动重设。
          */
         public void pairAndConnectToAnotherDeviceOfTheSameType(String newDeviceAddress) {
             pairAndConnectToAnotherDeviceOfTheSameType(mBleClientModel.getDeviceByAddress(newDeviceAddress));
@@ -400,7 +406,7 @@ public class TgiBleService extends Service {
                         @Override
                         public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
                             super.onDevicePairingStateChanged(device, previousState, currentState);
-                            if(newDevice.getAddress().equals(device.getAddress())){
+                            if (newDevice.getAddress().equals(device.getAddress())) {
                                 //切换同型号设备第四步：配对成功后重新连接，并把之前的通知重新设置一遍。至此1-4步切换同型号设备流程结束。
                                 if (currentState == BluetoothDevice.BOND_BONDED) {
                                     swapToAnotherPairedDevice(newDevice);
@@ -410,7 +416,7 @@ public class TgiBleService extends Service {
                         }
                     };
                     //切换同型号设备第二步：取消当前连接设备的配对
-                    if(mBtGatt!=null){
+                    if (mBtGatt != null) {
                         mBleClientModel.removePairedDeviceWithoutUserConsent(mBtGatt.getDevice());
                     }
                     //切换同型号设备第三步：500毫秒后配对新设备，在广播接受者中进行后面的逻辑。
@@ -429,25 +435,27 @@ public class TgiBleService extends Service {
 
         /**
          * 换一个相同型号的远程设备重新连接，之前的通知原封不动地自动重设。新设备要已经配对成功且已经同步到底层蓝牙设配器中。否则连接失败。
+         *
          * @param newDevice
          */
-        public void swapToAnotherPairedDevice(BluetoothDevice newDevice){
-            if(mTgiBtGattCallback!=null){
+        public void swapToAnotherPairedDevice(BluetoothDevice newDevice) {
+            if (mTgiBtGattCallback != null) {
                 showLog("开始更改设备。");
                 Set<Map.Entry<String, TgiToggleNotificationSession>> notifications
                         = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
-                showLog("更改设备前通知数目："+notifications.size());
+                showLog("更改设备前通知数目：" + notifications.size());
                 disConnectDevice();
-                showLog("更改设备前通知数目："+notifications.size());
+                showLog("更改设备前通知数目：" + notifications.size());
                 reconnect(newDevice, notifications);
             }
         }
 
         /**
          * 换一个相同型号的远程设备重新连接，之前的通知原封不动地自动重设。新设备要已经配对成功且已经同步到底层蓝牙设配器中。否则连接失败。
+         *
          * @param newDevice
          */
-        public void swapToAnotherPairedDevice(String newDevice){
+        public void swapToAnotherPairedDevice(String newDevice) {
             swapToAnotherPairedDevice(mBleClientModel.getDeviceByAddress(newDevice));
         }
 
@@ -460,11 +468,13 @@ public class TgiBleService extends Service {
                     //写入特性第二步：检查对应的服务及特性是否存在
                     BluetoothGattService service = mBtGatt.getService(UUID.fromString(serviceUUID));
                     if (service == null) {
+                        showLog("写入失败，目标服务为空。");
                         callback.onWriteFailed("Target service cannot be reached.");
                         return;
                     }
                     BluetoothGattCharacteristic btChar = service.getCharacteristic(UUID.fromString(charUUID));
                     if (btChar == null) {
+                        showLog("写入失败，目标特性为空。");
                         callback.onWriteFailed("Target characteristic cannot be reached.");
                         return;
                     }
@@ -578,6 +588,13 @@ public class TgiBleService extends Service {
                 mBtGatt = null;
             }
         }
+
+        public boolean isRemoteDeviceOnLine() {
+            if (mBtGatt != null) {
+                return mBtGatt.readRemoteRssi();
+            }
+            return false;
+        }
     }
 
     private boolean checkBtConnectionBeforeProceed()
@@ -617,7 +634,9 @@ public class TgiBleService extends Service {
 
             if (mBtEnableState == BluetoothAdapter.STATE_OFF) {
                 //蓝牙自动打开步骤1：如果当前状态是"关闭"，说明某些不可预知的意外导致蓝牙模块关闭了，这里申请重新打开
-                enableBt();
+                if (mIsAutoEnableBt.get()) {
+                    enableBt();
+                }
             } else if (previousState == BluetoothAdapter.STATE_TURNING_ON && mBtEnableState == BluetoothAdapter.STATE_ON
                     || previousState == BluetoothAdapter.STATE_OFF && mBtEnableState == BluetoothAdapter.STATE_ON) {
                 //蓝牙自动打开骤2：如果状态是从"正在打开"到"打开"或者从"关闭"到"打开"，说明蓝牙模块刚被打开。
@@ -687,6 +706,7 @@ public class TgiBleService extends Service {
                 );
             }
         }
+        showLog("重新设置通知完毕，蓝牙重连结束。");
         //蓝牙自动打开步骤7：通知设置完毕，流程结束
     }
 
@@ -706,8 +726,8 @@ public class TgiBleService extends Service {
             BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
             int currentState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1);
             int previousState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, -1);
-            showLog("先前配对状态：" + getBondStateDescription(previousState));
-            showLog("当前配对状态：" + getBondStateDescription(currentState));
+            showLog("先前配对状态：" + mBleClientModel.getBondStateDescription(previousState));
+            showLog("当前配对状态：" + mBleClientModel.getBondStateDescription(currentState));
             if (mDeviceParingStateListener != null) {
                 //蓝牙配对第5步：获取配对结果
                 mDeviceParingStateListener.onDevicePairingStateChanged(device, previousState, currentState);
@@ -724,22 +744,6 @@ public class TgiBleService extends Service {
             }
 
         }
-    }
-
-    private String getBondStateDescription(int state) {
-        String desc = "unknown";
-        switch (state) {
-            case BluetoothDevice.BOND_NONE:
-                desc = "BOND_NONE";
-                break;
-            case BluetoothDevice.BOND_BONDED:
-                desc = "BOND_BONDED";
-                break;
-            case BluetoothDevice.BOND_BONDING:
-                desc = "BOND_BONDING";
-                break;
-        }
-        return desc;
     }
 
 

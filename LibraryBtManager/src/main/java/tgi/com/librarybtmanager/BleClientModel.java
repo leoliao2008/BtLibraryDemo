@@ -5,13 +5,9 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.pm.PackageManager;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 class BleClientModel {
@@ -83,5 +79,40 @@ class BleClientModel {
             list.add(iterator.next());
         }
         return list;
+    }
+
+    public String getBondStateDescription(int state) {
+        String desc = "UNKNOWN_BOND_STATE";
+        switch (state) {
+            case BluetoothDevice.BOND_NONE:
+                desc = "BOND_NONE";
+                break;
+            case BluetoothDevice.BOND_BONDED:
+                desc = "BOND_BONDED";
+                break;
+            case BluetoothDevice.BOND_BONDING:
+                desc = "BOND_BONDING";
+                break;
+        }
+        return desc;
+    }
+
+    public String getBtEnableStateDescription(int btEnableSateCode) {
+        String desc = "UNKNOWN_ENABLE_STATE";
+        switch (btEnableSateCode){
+            case BluetoothAdapter.STATE_OFF:
+                desc="STATE_OFF";
+                break;
+            case BluetoothAdapter.STATE_ON:
+                desc="STATE_ON";
+                break;
+            case BluetoothAdapter.STATE_TURNING_ON:
+                desc="STATE_TURNING_ON";
+                break;
+            case BluetoothAdapter.STATE_TURNING_OFF:
+                desc="STATE_TURNING_OFF";
+                break;
+        }
+        return desc;
     }
 }
