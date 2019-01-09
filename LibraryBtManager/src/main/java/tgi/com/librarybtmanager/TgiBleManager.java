@@ -130,7 +130,7 @@ public class TgiBleManager {
             }
         };
         //5，然后再bind蓝牙后台服务，目的是获取binder
-        boolean isSuccess = activity.bindService(
+        boolean isSuccess = activity.getApplicationContext().bindService(
                 new Intent(activity, TgiBleService.class),
                 mServiceConnection,
                 Context.BIND_AUTO_CREATE

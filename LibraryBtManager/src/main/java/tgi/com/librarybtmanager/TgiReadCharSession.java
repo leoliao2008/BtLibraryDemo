@@ -12,28 +12,26 @@ import java.util.Objects;
  * Description:
  */
 public class TgiReadCharSession {
-    private BluetoothGatt mBtGatt;
     private TgiBtGattCallback mBtGattCallback;
     private TgiReadCharCallback mTgiReadCharCallback;
     private BluetoothGattCharacteristic mBtChar;
     private String mSessionUUID;
 
     public TgiReadCharSession(
-            BluetoothGatt btGatt,
+            String devAddress,
             BluetoothGattCharacteristic btChar,
             TgiBtGattCallback tgiBtGattCallback) {
-        mBtGatt = btGatt;
         mBtGattCallback = tgiBtGattCallback;
         mBtChar = btChar;
-        mSessionUUID = SessionUUIDGenerator.genReadWriteSessionUUID(btGatt.getDevice(), btChar);
+        mSessionUUID = SessionUUIDGenerator.genReadWriteSessionUUID(devAddress, btChar);
     }
 
-    void read(TgiReadCharCallback callback){
+    void read(BluetoothGatt gatt,TgiReadCharCallback callback){
         mTgiReadCharCallback=callback;
         //把自身作为对象，保存到mBtGattCallback中，然后在onCharRead()回调中使用。
         //这样保证了可以同时处理多个read sessions.
         mBtGattCallback.registerReadSession(this);
-        boolean isInitSuccess = mBtGatt.readCharacteristic(mBtChar);
+        boolean isInitSuccess = gatt.readCharacteristic(mBtChar);
         //如果一开始就无法启动读取，则释放资源，放弃操作。
         if(!isInitSuccess){
             callback.onError("Read operation fails to initiate.");

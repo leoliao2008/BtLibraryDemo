@@ -1,6 +1,5 @@
 package tgi.com.librarybtmanager;
 
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
@@ -14,8 +13,8 @@ class SessionUUIDGenerator {
     private SessionUUIDGenerator() {
     }
 
-    static String genReadWriteSessionUUID(BluetoothDevice device, BluetoothGattCharacteristic btChar) {
-        return new StringBuilder().append(device.getAddress())
+    static String genReadWriteSessionUUID(String devAddress, BluetoothGattCharacteristic btChar) {
+        return new StringBuilder().append(devAddress)
                 .append("@")
                 .append(btChar.getService().getUuid().toString())
                 .append("@")
@@ -23,8 +22,8 @@ class SessionUUIDGenerator {
                 .toString();
     }
 
-    static String genToggleNotificationSessionUUID(BluetoothDevice device, BluetoothGattDescriptor descriptor) {
-        return new StringBuilder().append(device.getAddress())
+    static String genToggleNotificationSessionUUID(String devAddress, BluetoothGattDescriptor descriptor) {
+        return new StringBuilder().append(devAddress)
                 .append("@")
                 .append(descriptor.getCharacteristic().getService().getUuid().toString())
                 .append("@")
@@ -35,7 +34,7 @@ class SessionUUIDGenerator {
     }
 
     /**
-     * 解析NotificationSessionUUID，返回一个长度为4的字符串数组，下标0-3分别表示bt device address, service uuid,char uuid,descriptor uuid。
+     * 解析NotificationSessionUUID，返回一个长度为4的字符串数组，下标0-3分别表示bt device address,service uuid,char uuid,descriptor uuid。
      * @param notificationSessionUUID
      * @return
      */

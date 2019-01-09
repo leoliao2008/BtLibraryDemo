@@ -1,5 +1,7 @@
 package tgi.com.librarybtmanager;
 
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -46,7 +48,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
         //支持同时读取多个特性，不冲突
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
         Iterator<TgiReadCharSession> iterator = mReadSessions.iterator();
         while (iterator.hasNext()) {
             TgiReadCharSession session = iterator.next();
@@ -69,7 +71,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
         //支持同时写入多个特性，不冲突
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
         Iterator<TgiWriteCharSession> iterator = mWriteSessions.iterator();
         while (iterator.hasNext()) {
             TgiWriteCharSession session = iterator.next();
@@ -89,11 +91,12 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         }
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         super.onDescriptorWrite(gatt, descriptor, status);
         //支持同时设置多个通知，不冲突
-        String uuid = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice(), descriptor);
+        String uuid = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice().getAddress(), descriptor);
         Iterator<TgiToggleNotificationSession> iterator = mToggleNotificationSessions.iterator();
         while (iterator.hasNext()) {
             TgiToggleNotificationSession session = iterator.next();
@@ -108,7 +111,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.getTgiToggleNotificationCallback().onError("The value of descriptor dose not match the target value.");
                     }
                     //更新map内容，这是为了onCharacteristicChanged中注册了通知的char的值发生变化时，用来传递变化的数据。
-                    String key = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice(), descriptor);
+                    String key = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice().getAddress(), descriptor);
                     if (toTurnOn) {
                         mCharChangedListeners.put(key, session);
                     } else {
@@ -116,19 +119,11 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.close();
                     }
                 } else {
-                    //如果不成功，一直设置到成功为止。
-                    session.start(session.getTgiToggleNotificationCallback());
+                    //如果不成功，只要还没解除绑定，就一直设置到成功为止。
+                    if(gatt.getDevice().getBondState()== BluetoothDevice.BOND_BONDED){
+                        session.start(gatt,session.getTgiToggleNotificationCallback());
+                    }
                     break;
-//                    StringBuilder sb = new StringBuilder();
-//                    sb.append("Fails to ");
-//                    if (toTurnOn) {
-//                        sb.append("enable notification.");
-//                    } else {
-//                        sb.append("disable notification.");
-//                    }
-//                    sb.append(" Status Code=").append(status);
-//                    session.getTgiToggleNotificationCallback().onError(sb.toString());
-//                    session.close();
                 }
                 iterator.remove();
             }
@@ -139,7 +134,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
         //在mCharChangedListeners根据UUID找到之前注册通知的回调，逐个返回最新数据。
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice(), characteristic);
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
         if (mCharChangedListeners.size() > 0) {
             Iterator<Map.Entry<String, TgiToggleNotificationSession>> iterator = mCharChangedListeners.entrySet().iterator();
             while (iterator.hasNext()) {

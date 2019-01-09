@@ -1,9 +1,7 @@
 package tgi.com.librarybtmanager;
 
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.media.FaceDetector;
 
 import java.util.Objects;
 
@@ -17,25 +15,23 @@ public class TgiToggleNotificationSession {
     private TgiBtGattCallback mBtGattCallback;
     private TgiToggleNotificationCallback mTgiToggleNotificationCallback;
     private BluetoothGattDescriptor mDescriptor;
-    private BluetoothGatt mBluetoothGatt;
     private String mSessionUUID;
     private boolean mIsToTurnOn;
 
     TgiToggleNotificationSession(
-            BluetoothGatt btGatt,
+            String devAddress,
             BluetoothGattDescriptor descriptor,
             boolean isToTurnOn,
             TgiBtGattCallback tgiBtGattCallback) {
         mDescriptor = descriptor;
         mBtGattCallback = tgiBtGattCallback;
         mIsToTurnOn = isToTurnOn;
-        mBluetoothGatt=btGatt;
-        mSessionUUID = SessionUUIDGenerator.genToggleNotificationSessionUUID(btGatt.getDevice(), mDescriptor);
+        mSessionUUID = SessionUUIDGenerator.genToggleNotificationSessionUUID(devAddress, mDescriptor);
     }
 
 
-    void start(TgiToggleNotificationCallback callback) {
-        boolean isInitSuccess = mBluetoothGatt.setCharacteristicNotification(mDescriptor.getCharacteristic(), mIsToTurnOn);
+    void start(BluetoothGatt gatt,TgiToggleNotificationCallback callback) {
+        boolean isInitSuccess = gatt.setCharacteristicNotification(mDescriptor.getCharacteristic(), mIsToTurnOn);
         if (!isInitSuccess) {
             callback.onError("Target characteristic value cannot be set.");
             showLog("通知设置失败：更新本地特性值失败");
@@ -54,7 +50,7 @@ public class TgiToggleNotificationSession {
         mTgiToggleNotificationCallback = callback;
         mBtGattCallback.registerToggleNotificationSession(this);
         //开始设置通知，后续步骤将会在TgiBtGattCallback的onDescriptorWrite回调中进行。
-        isInitSuccess = mBluetoothGatt.writeDescriptor(mDescriptor);
+        isInitSuccess = gatt.writeDescriptor(mDescriptor);
         //如果一开始就无法启动流程，则直接结束，释放资源。
         if (!isInitSuccess) {
             callback.onError("Target descriptor cannot be written into characteristic.");

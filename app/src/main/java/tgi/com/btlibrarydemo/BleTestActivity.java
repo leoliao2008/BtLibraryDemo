@@ -33,6 +33,12 @@ public class BleTestActivity extends BaseActionBarActivity {
                 super.onError(msg);
                 Log.e("onError", msg);
             }
+
+            @Override
+            public void onInitSuccess() {
+                super.onInitSuccess();
+                Log.e(getClass().getSimpleName(),"onInitSuccess");
+            }
         });
     }
 

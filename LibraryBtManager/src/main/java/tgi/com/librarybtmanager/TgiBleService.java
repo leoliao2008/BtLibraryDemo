@@ -17,6 +17,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
+import android.text.TextUtils;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -148,10 +149,20 @@ public class TgiBleService extends Service {
 
     protected class TgiBleServiceBinder extends Binder {
 
+        /**
+         * 设置是否蓝牙模块被关闭后自动重启以及重连远程设备。默认启动。
+         *
+         * @param isToAutoEnable
+         */
         public void setAutoEnableBt(boolean isToAutoEnable) {
             mIsAutoEnableBt.set(isToAutoEnable);
         }
 
+        /**
+         * 开始扫描附近有名字的蓝牙设备，扫描时间5秒
+         *
+         * @param callback
+         */
         public void startScanDevice(TgiBleScanCallback callback) {
             try {
                 if (checkBtEnableBeforeProceed()) {
@@ -162,6 +173,11 @@ public class TgiBleService extends Service {
             }
         }
 
+        /**
+         * 提前终止扫描蓝牙设备。
+         *
+         * @param callback
+         */
         public void stopScanDevice(TgiBleScanCallback callback) {
             try {
                 if (checkBtEnableBeforeProceed()) {
@@ -172,11 +188,22 @@ public class TgiBleService extends Service {
             }
         }
 
+        /**
+         * 获取蓝牙配对设备清单
+         *
+         * @return
+         */
         public ArrayList<BluetoothDevice> getBondedDevices() {
             return mBleClientModel.getBondedDevices();
         }
 
-        //蓝牙配对
+
+        /**
+         * 启动蓝牙配对，这是官方推荐的方法，需要用户确认。
+         *
+         * @param device
+         * @param listener
+         */
         public void pairDevice(final BluetoothDevice device, final DeviceParingStateListener listener) {
             try {
                 if (checkBtEnableBeforeProceed()) {
@@ -212,25 +239,60 @@ public class TgiBleService extends Service {
             }
         }
 
-        //利用反射配对蓝牙
+        /**
+         * 利用反射配对蓝牙设备，不需要用户确认。
+         *
+         * @param device
+         * @return
+         */
         public boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
             return mBleClientModel.pairDeviceWithoutUserConsent(device);
         }
 
+        /**
+         * 利用反射配对蓝牙设备，不需要用户确认。
+         *
+         * @param deviceAddress
+         * @return
+         */
         public boolean pairDeviceWithoutUserConsent(String deviceAddress) {
             return pairDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(deviceAddress));
         }
 
-        //利用反射取消配对了的蓝牙
+        public boolean pairDeviceWithoutUserConsent(String deviceAddress, DeviceParingStateListener listener) {
+            return mBleClientModel.pairDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(deviceAddress), listener);
+        }
+
+        public boolean pairDeviceWithoutUserConsent(BluetoothDevice device, DeviceParingStateListener listener) {
+            return mBleClientModel.pairDeviceWithoutUserConsent(device, listener);
+        }
+
+        /**
+         * 利用反射解除蓝牙配对，不需要用户确认。
+         *
+         * @param device
+         * @return
+         */
         public boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
             return mBleClientModel.removePairedDeviceWithoutUserConsent(device);
         }
 
+        /**
+         * 利用反射解除蓝牙配对，不需要用户确认。
+         *
+         * @param deviceAddress
+         * @return
+         */
         public boolean removePairedDeviceWithoutUserConsent(String deviceAddress) {
             return removePairedDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(deviceAddress));
         }
 
-        //已知蓝牙设备地址，连接蓝牙设备
+        /**
+         * 连接已经配对的蓝牙设备
+         *
+         * @param deviceAddress
+         * @param listener
+         */
         public void connectDevice(String deviceAddress, final BtDeviceConnectListener listener) {
             connectDevice(
                     mBleClientModel.getDeviceByAddress(deviceAddress),
@@ -238,7 +300,12 @@ public class TgiBleService extends Service {
             );
         }
 
-        //已知蓝牙设备对象，连接蓝牙设备
+        /**
+         * 连接已经配对的蓝牙设备
+         *
+         * @param device
+         * @param listener
+         */
         public void connectDevice(final BluetoothDevice device, final BtDeviceConnectListener listener) {
             //连接蓝牙设备第一步：判断是否正在连接，如果是，放弃当前操作。
             if (!mConnectSwitch.tryAcquire()) {
@@ -308,7 +375,6 @@ public class TgiBleService extends Service {
                                             }
                                         } catch (BtNotBondedException e) {
                                             e.printStackTrace();
-                                            e.printStackTrace();
                                             //这里只可能是连接成功后，在传输数据的过程中用户取消了配对，这时要终止连接。重复连接已经没有意义，
                                             // 更糟糕的是会阻塞蓝牙，这时如果利用反射配对其它设备将会失败。
                                             showLog("传输数据到一半的时候，被取消配对了，中断连接等待进一步指示。");
@@ -321,11 +387,8 @@ public class TgiBleService extends Service {
                                         }
                                     }
                                 }, 1000);
-
                             }
-
                         }
-
                     }
 
                     @Override
@@ -378,7 +441,6 @@ public class TgiBleService extends Service {
                     //这种情况下如果还是强行配对之前的设备，再强行连接之前的设备和重新设置通知，明显不合理。应当中断连接，让上层应用处理配对更新后的逻辑。
                     //综上所述，这里应该抛出异常，中断连接
                     listener.onConnectFail(e.getMessage());
-
                 }
             } else {
                 mConnectSwitch.release();
@@ -480,10 +542,10 @@ public class TgiBleService extends Service {
                     }
                     //写入特性第三步：正式写入
                     TgiWriteCharSession session = new TgiWriteCharSession(
-                            mBtGatt,
+                            mBtGatt.getDevice().getAddress(),
                             btChar,
                             mTgiBtGattCallback);
-                    session.write(data, callback);
+                    session.write(mBtGatt,data, callback);
                     //后续在TgiBtGattCallback的onCharacteristicWrite回调中进行。
                 }
             } catch (Exception e) {
@@ -516,10 +578,10 @@ public class TgiBleService extends Service {
                     }
                     //读取特性第三步：正式开始读取
                     TgiReadCharSession session = new TgiReadCharSession(
-                            mBtGatt,
+                            mBtGatt.getDevice().getAddress(),
                             btChar,
                             mTgiBtGattCallback);
-                    session.read(callback);
+                    session.read(mBtGatt,callback);
                     //后续在TgiBtGattCallback的onCharacteristicRead回调中进行。
                 }
             } catch (Exception e) {
@@ -559,11 +621,11 @@ public class TgiBleService extends Service {
                     //注册/取消注册通知第三步：正式操作注册/取消注册，后续在TgiBtGattCallback的onDescriptorWrite回调中进行。
                     //至此1-3步完成流程。
                     TgiToggleNotificationSession session = new TgiToggleNotificationSession(
-                            mBtGatt,
+                            mBtGatt.getDevice().getAddress(),
                             btDesc,
                             isToTurnOn,
                             mTgiBtGattCallback);
-                    session.start(callback);
+                    session.start(mBtGatt,callback);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -588,13 +650,6 @@ public class TgiBleService extends Service {
                 mBtGatt = null;
             }
         }
-
-        public boolean isRemoteDeviceOnLine() {
-            if (mBtGatt != null) {
-                return mBtGatt.readRemoteRssi();
-            }
-            return false;
-        }
     }
 
     private boolean checkBtConnectionBeforeProceed()
@@ -609,6 +664,11 @@ public class TgiBleService extends Service {
     private boolean checkBtBondedBeforeProceed(BluetoothDevice device)
             throws BtNotBondedException, BtNotEnabledException {
         if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
+            String name = device.getName();
+            if (TextUtils.isEmpty(name)) {
+                name = "The device has no name.";
+            }
+            showLog("Device is not bonded, device address: " + device.getAddress() + " device name: " + name);
             throw new BtNotBondedException();
         }
         return checkBtEnableBeforeProceed();
@@ -742,7 +802,6 @@ public class TgiBleService extends Service {
                     }
                 }
             }
-
         }
     }
 

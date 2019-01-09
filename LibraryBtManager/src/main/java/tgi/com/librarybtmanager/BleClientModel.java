@@ -45,10 +45,17 @@ class BleClientModel {
 
 
     BluetoothDevice getDeviceByAddress(String deviceAddress) {
-        return BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
+        //判断蓝牙地址是否符合规范
+        if(BluetoothAdapter.checkBluetoothAddress(deviceAddress.toUpperCase())){
+            return BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
+        }else {
+            //如果不符合规范返回null
+            LogUtils.showLog("DeviceAddress "+deviceAddress+" is not a valid MAC address!");
+            return null;
+        }
     }
 
-    public boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
+    boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
         boolean result = false;
         try {
             Method createBondMethod = BluetoothDevice.class.getMethod("createBond");
@@ -59,7 +66,61 @@ class BleClientModel {
         return result;
     }
 
-    public boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
+    /**
+     * 强制配对，并附有回调实时跟踪配对结果。
+     *
+     * @param device
+     * @param listener
+     * @return
+     */
+    boolean pairDeviceWithoutUserConsent(final BluetoothDevice device, final DeviceParingStateListener listener) {
+        listener.onParingSessionBegin();
+        boolean result = false;
+        //1，反射启动配对
+        try {
+            Method createBondMethod = BluetoothDevice.class.getMethod("createBond");
+            result = (Boolean) createBondMethod.invoke(device);
+        } catch (Exception e) {
+            e.getStackTrace();
+            listener.onError(e.getMessage());
+            listener.onParingSessionEnd();
+        }
+        //2，新建一个子线程实时检测配对结果
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                @SuppressLint("MissingPermission")
+                int preState = device.getBondState();
+                while (true) {
+                    try {
+                        //3，每隔200毫秒检查一次
+                        Thread.sleep(200);
+                        @SuppressLint("MissingPermission")
+                        int currentState = device.getBondState();
+                        //4，返回最新状态
+                        listener.onDevicePairingStateChanged(device, preState, currentState);
+                        //5，如果配对结果返回成功/失败，结束流程
+                        if (preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_BONDED
+                                || preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_NONE
+                                || currentState == BluetoothDevice.BOND_BONDED) {
+                            listener.onParingSessionEnd();
+                            break;
+                        }
+                        preState = currentState;
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        listener.onError(e.getMessage());
+                        listener.onParingSessionEnd();
+                        break;
+                    }
+                }
+            }
+        }).start();
+        return result;
+    }
+
+    boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
+        LogUtils.showLog("removePairedDeviceWithoutUserConsent");
         boolean result = false;
         try {
             Method removeBondMethod = BluetoothDevice.class.getMethod("removeBond");
@@ -71,17 +132,17 @@ class BleClientModel {
     }
 
     @SuppressLint("MissingPermission")
-    public ArrayList<BluetoothDevice> getBondedDevices(){
-        ArrayList<BluetoothDevice> list=new ArrayList<>();
+    ArrayList<BluetoothDevice> getBondedDevices() {
+        ArrayList<BluetoothDevice> list = new ArrayList<>();
         Set<BluetoothDevice> devices = BluetoothAdapter.getDefaultAdapter().getBondedDevices();
         Iterator<BluetoothDevice> iterator = devices.iterator();
-        while (iterator.hasNext()){
+        while (iterator.hasNext()) {
             list.add(iterator.next());
         }
         return list;
     }
 
-    public String getBondStateDescription(int state) {
+    String getBondStateDescription(int state) {
         String desc = "UNKNOWN_BOND_STATE";
         switch (state) {
             case BluetoothDevice.BOND_NONE:
@@ -97,20 +158,20 @@ class BleClientModel {
         return desc;
     }
 
-    public String getBtEnableStateDescription(int btEnableSateCode) {
+    String getBtEnableStateDescription(int btEnableSateCode) {
         String desc = "UNKNOWN_ENABLE_STATE";
-        switch (btEnableSateCode){
+        switch (btEnableSateCode) {
             case BluetoothAdapter.STATE_OFF:
-                desc="STATE_OFF";
+                desc = "STATE_OFF";
                 break;
             case BluetoothAdapter.STATE_ON:
-                desc="STATE_ON";
+                desc = "STATE_ON";
                 break;
             case BluetoothAdapter.STATE_TURNING_ON:
-                desc="STATE_TURNING_ON";
+                desc = "STATE_TURNING_ON";
                 break;
             case BluetoothAdapter.STATE_TURNING_OFF:
-                desc="STATE_TURNING_OFF";
+                desc = "STATE_TURNING_OFF";
                 break;
         }
         return desc;
