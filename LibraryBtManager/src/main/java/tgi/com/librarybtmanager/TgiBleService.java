@@ -99,6 +99,8 @@ public class TgiBleService extends Service {
         }
         //本机蓝牙初始化第三步：返回binder给TgiBleManager
         mTgiBleServiceBinder = new TgiBleServiceBinder();
+        //有的机子上bindService不成功，就算这样也要强行把mTgiBleServiceBinder返回给TgiBleManager.
+        TgiBleManager.getInstance().setTgiBleServiceBinder(mTgiBleServiceBinder);
         return mTgiBleServiceBinder;
     }
 

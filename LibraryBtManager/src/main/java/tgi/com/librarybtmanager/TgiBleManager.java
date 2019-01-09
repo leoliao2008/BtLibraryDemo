@@ -130,8 +130,10 @@ public class TgiBleManager {
             }
         };
         //5，然后再bind蓝牙后台服务，目的是获取binder
-        boolean isSuccess = activity.getApplicationContext().bindService(
-                new Intent(activity, TgiBleService.class),
+        //Android 5.0及以上的设备，google出于安全的角度禁止了隐式声明Intent来启动Service.也禁止使用Intent filter.否则就会抛个异常出来.
+        Intent bindIntent=new Intent(activity, TgiBleService.class);
+        boolean isSuccess = activity.bindService(
+                bindIntent,
                 mServiceConnection,
                 Context.BIND_AUTO_CREATE
         );
@@ -146,7 +148,7 @@ public class TgiBleManager {
 
     public void stopBtService(Activity activity) {
         //先解除绑定
-        if (mServiceConnection != null) {
+        if (mServiceConnection != null && mTgiBleServiceBinder != null) {
             activity.unbindService(mServiceConnection);
             mServiceConnection = null;
             mTgiBleServiceBinder = null;

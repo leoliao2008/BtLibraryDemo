@@ -21,6 +21,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.Semaphore;
 
 import tgi.com.librarybtmanager.BtDeviceConnectListener;
@@ -84,11 +85,11 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                     boolean b = TgiBleManager.getInstance().removePairedDeviceWithoutUserConsent(device);
                     showLog("解除绑定：" + b);
                 } else {
-//                    boolean b = TgiBleManager.getInstance().pairDeviceWithoutUserConsent(device);
-//                    showLog("新增绑定：" + b);
-//                    if (b) {
-//
-//                    }
+                    //                    boolean b = TgiBleManager.getInstance().pairDeviceWithoutUserConsent(device);
+                    //                    showLog("新增绑定：" + b);
+                    //                    if (b) {
+                    //
+                    //                    }
                     TgiBleManager.getInstance().pairAndConnectAnotherDeviceOfTheSameType(device);
                 }
                 mRecyclerView.postDelayed(new Runnable() {
@@ -263,9 +264,12 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
         );
     }
 
+    private byte[] mWriteData = new byte[500];
+
     public void write(View view) {
+        Arrays.fill(mWriteData,(byte)125);
         TgiBleManager.getInstance().writeCharacteristic(
-                new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20},
+                mWriteData,
                 Constants.MASTER_SERVICE_UUID,
                 Constants.FUNCTION_CHAR_UUID,
                 new TgiWriteCharCallback() {

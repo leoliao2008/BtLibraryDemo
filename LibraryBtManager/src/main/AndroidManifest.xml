@@ -1,3 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="tgi.com.librarybtmanager" />
+    package="tgi.com.librarybtmanager"  >
+    <application>
+        <service android:name=".TgiBleService">
+            <intent-filter>
+                <action android:name="android.intent.action.GET_TGI_BLE_SERVICE"></action>
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
 
