@@ -23,7 +23,10 @@ public class TgiReadCharSession {
             TgiBtGattCallback tgiBtGattCallback) {
         mBtGattCallback = tgiBtGattCallback;
         mBtChar = btChar;
-        mSessionUUID = SessionUUIDGenerator.genReadWriteSessionUUID(devAddress, btChar);
+        mSessionUUID = SessionUUIDGenerator.genReadWriteSessionUUID(
+                devAddress,
+                btChar.getUuid().toString(),
+                btChar.getService().getUuid().toString());
     }
 
     void read(BluetoothGatt gatt,TgiReadCharCallback callback){

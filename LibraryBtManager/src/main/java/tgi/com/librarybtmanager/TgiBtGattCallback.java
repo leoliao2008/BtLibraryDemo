@@ -48,7 +48,10 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicRead(gatt, characteristic, status);
         //支持同时读取多个特性，不冲突
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(
+                gatt.getDevice().getAddress(),
+                characteristic.getUuid().toString(),
+                characteristic.getService().getUuid().toString());
         Iterator<TgiReadCharSession> iterator = mReadSessions.iterator();
         while (iterator.hasNext()) {
             TgiReadCharSession session = iterator.next();
@@ -71,7 +74,16 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
         super.onCharacteristicWrite(gatt, characteristic, status);
         //支持同时写入多个特性，不冲突
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
+        showLog("蓝牙写入回调被触发了。");
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(
+                gatt.getDevice().getAddress(),
+                characteristic.getUuid().toString(),
+                characteristic.getService().getUuid().toString());
+        int size = mWriteSessions.size();
+        if(size<1){
+            showLog("mWriteSessions 数量为0，跳过。");
+            return;
+        }
         Iterator<TgiWriteCharSession> iterator = mWriteSessions.iterator();
         while (iterator.hasNext()) {
             TgiWriteCharSession session = iterator.next();
@@ -134,7 +146,10 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
         super.onCharacteristicChanged(gatt, characteristic);
         //在mCharChangedListeners根据UUID找到之前注册通知的回调，逐个返回最新数据。
-        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(gatt.getDevice().getAddress(), characteristic);
+        String uuid = SessionUUIDGenerator.genReadWriteSessionUUID(
+                gatt.getDevice().getAddress(),
+                characteristic.getUuid().toString(),
+                characteristic.getService().getUuid().toString());
         if (mCharChangedListeners.size() > 0) {
             Iterator<Map.Entry<String, TgiToggleNotificationSession>> iterator = mCharChangedListeners.entrySet().iterator();
             while (iterator.hasNext()) {

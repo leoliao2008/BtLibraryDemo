@@ -98,8 +98,8 @@ public class ScanDeviceActivity extends BaseActionBarActivity {
                             }
 
                             @Override
-                            public void onParingSessionEnd() {
-                                super.onParingSessionEnd();
+                            public void onParingSessionEnd(int endState) {
+                                super.onParingSessionEnd(endState);
                                 showLog("onParingSessionEnd");
                             }
                         }

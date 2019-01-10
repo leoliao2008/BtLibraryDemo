@@ -14,6 +14,8 @@ import android.support.annotation.RequiresApi;
 
 import java.util.ArrayList;
 
+import static tgi.com.librarybtmanager.LogUtils.showLog;
+
 /**
  * <p><b>Author:</b></p>
  * <i>leo</i>
@@ -224,6 +226,10 @@ public class TgiBleManager {
         return mBleClientModel.pairDeviceWithoutUserConsent(device);
     }
 
+    public void pairDeviceWithoutUserConsent(BluetoothDevice bluetoothDevice, DeviceParingStateListener listener) {
+        mBleClientModel.pairDeviceWithoutUserConsent(bluetoothDevice,listener);
+    }
+
     public boolean removePairedDeviceWithoutUserConsent(String devAddress) {
         return removePairedDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(devAddress));
     }
@@ -258,9 +264,6 @@ public class TgiBleManager {
         }
     }
 
-    private void showLog(String msg) {
-        LogUtils.showLog(msg);
-    }
 
     //断开蓝牙
     public void disConnectDevice() {
@@ -344,4 +347,6 @@ public class TgiBleManager {
     public String getBtEnableSateDescription(int enableSateCode) {
         return mBleClientModel.getBtEnableStateDescription(enableSateCode);
     }
+
+
 }

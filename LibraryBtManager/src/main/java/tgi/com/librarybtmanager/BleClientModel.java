@@ -3,12 +3,17 @@ package tgi.com.librarybtmanager;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.content.Context;
 import android.content.pm.PackageManager;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Set;
+
+import static tgi.com.librarybtmanager.LogUtils.showLog;
 
 class BleClientModel {
 
@@ -46,14 +51,23 @@ class BleClientModel {
 
     BluetoothDevice getDeviceByAddress(String deviceAddress) {
         //判断蓝牙地址是否符合规范
-        if(BluetoothAdapter.checkBluetoothAddress(deviceAddress.toUpperCase())){
+        if (BluetoothAdapter.checkBluetoothAddress(deviceAddress.toUpperCase())) {
             return BluetoothAdapter.getDefaultAdapter().getRemoteDevice(deviceAddress);
-        }else {
+        } else {
             //如果不符合规范返回null
-            LogUtils.showLog("DeviceAddress "+deviceAddress+" is not a valid MAC address!");
+            showLog("DeviceAddress " + deviceAddress + " is not a valid MAC address!");
             return null;
         }
     }
+
+    @SuppressLint("MissingPermission")
+    boolean checkIfDeviceConnected(Context context, BluetoothDevice device) {
+        BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
+        int state = bluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
+        showLog("实时检查当前连接状态：" + getBtDeviceConnectionStateDescription(state));
+        return state == BluetoothProfile.STATE_CONNECTED;
+    }
+
 
     boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
         boolean result = false;
@@ -73,6 +87,7 @@ class BleClientModel {
      * @param listener
      * @return
      */
+    @SuppressLint("MissingPermission")
     boolean pairDeviceWithoutUserConsent(final BluetoothDevice device, final DeviceParingStateListener listener) {
         listener.onParingSessionBegin();
         boolean result = false;
@@ -83,7 +98,7 @@ class BleClientModel {
         } catch (Exception e) {
             e.getStackTrace();
             listener.onError(e.getMessage());
-            listener.onParingSessionEnd();
+            listener.onParingSessionEnd(device.getBondState());
         }
         //2，新建一个子线程实时检测配对结果
         new Thread(new Runnable() {
@@ -103,14 +118,14 @@ class BleClientModel {
                         if (preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_BONDED
                                 || preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_NONE
                                 || currentState == BluetoothDevice.BOND_BONDED) {
-                            listener.onParingSessionEnd();
+                            listener.onParingSessionEnd(currentState);
                             break;
                         }
                         preState = currentState;
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                         listener.onError(e.getMessage());
-                        listener.onParingSessionEnd();
+                        listener.onParingSessionEnd(device.getBondState());
                         break;
                     }
                 }
@@ -120,7 +135,7 @@ class BleClientModel {
     }
 
     boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
-        LogUtils.showLog("removePairedDeviceWithoutUserConsent");
+        showLog("removePairedDeviceWithoutUserConsent");
         boolean result = false;
         try {
             Method removeBondMethod = BluetoothDevice.class.getMethod("removeBond");
@@ -172,6 +187,25 @@ class BleClientModel {
                 break;
             case BluetoothAdapter.STATE_TURNING_OFF:
                 desc = "STATE_TURNING_OFF";
+                break;
+        }
+        return desc;
+    }
+
+    String getBtDeviceConnectionStateDescription(int state) {
+        String desc="UNKNOWN_CONNECTION_STATE";
+        switch (state){
+            case BluetoothProfile.STATE_CONNECTED:
+                desc="STATE_CONNECTED";
+                break;
+            case BluetoothProfile.STATE_CONNECTING:
+                desc="STATE_CONNECTING";
+                break;
+            case BluetoothProfile.STATE_DISCONNECTED:
+                desc="STATE_DISCONNECTED";
+                break;
+            case BluetoothProfile.STATE_DISCONNECTING:
+                desc="STATE_DISCONNECTING";
                 break;
         }
         return desc;

@@ -23,7 +23,17 @@ class LogUtils {
 
     static void showLog(String msg) {
         if(IS_DEBUG){
-            Log.e("TGI BT MANAGER",msg);
+            StackTraceElement element = new Throwable().getStackTrace()[1];
+            StringBuilder sb=new StringBuilder();
+            String className=element.getClassName().replace("tgi.com.librarybtmanager.","").trim();
+            sb.append(className)
+                    .append("->")
+                    .append(element.getMethodName())
+                    .append("->Line:")
+                    .append(element.getLineNumber())
+                    .append("->")
+                    .append(msg);
+            Log.e("TgiBtLib",sb.toString());
         }
     }
 

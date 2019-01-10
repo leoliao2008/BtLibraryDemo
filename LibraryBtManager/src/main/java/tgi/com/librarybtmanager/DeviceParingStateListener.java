@@ -20,7 +20,7 @@ public class DeviceParingStateListener {
 
     }
 
-    public void onParingSessionEnd(){
+    public void onParingSessionEnd(int endState){
 
     }
 

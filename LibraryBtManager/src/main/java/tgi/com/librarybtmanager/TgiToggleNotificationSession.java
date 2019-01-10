@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothGattDescriptor;
 
 import java.util.Objects;
 
+import static tgi.com.librarybtmanager.LogUtils.showLog;
+
 /**
  * Author: Administrator
  * Date: 2018/12/23
@@ -91,9 +93,6 @@ public class TgiToggleNotificationSession {
         return Objects.hash(mSessionUUID);
     }
 
-    private void showLog(String msg){
-        LogUtils.showLog(msg);
-    }
 
 
 }

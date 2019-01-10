@@ -264,7 +264,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
         );
     }
 
-    private byte[] mWriteData = new byte[500];
+    private byte[] mWriteData = new byte[10];
 
     public void write(View view) {
         Arrays.fill(mWriteData,(byte)125);
