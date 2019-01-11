@@ -1,16 +1,18 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.base;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.support.annotation.NonNull;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
 
-public class MainActivity extends BaseActionBarActivity {
-    private MainActivity mThis;
+import tgi.com.btlibrarydemo.R;
+import tgi.com.btlibrarydemo.activities.BaseActionBarActivity;
+
+public class GreetingActivity extends BaseActionBarActivity {
+    private GreetingActivity mThis;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +57,6 @@ public class MainActivity extends BaseActionBarActivity {
     }
 
     public void toBleTestActivity(View view) {
-        BleTestActivity.start(this);
+        InitBtActivity.start(this);
     }
 }

@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.SystemClock;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -64,7 +65,6 @@ class TgiBleClientModel {
     boolean checkIfDeviceConnected(Context context, BluetoothDevice device) {
         BluetoothManager bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         int state = bluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
-        showLog("实时检查当前连接状态：" + getBtDeviceConnectionStateDescription(state));
         return state == BluetoothProfile.STATE_CONNECTED;
     }
 
@@ -88,33 +88,46 @@ class TgiBleClientModel {
      * @return
      */
     @SuppressLint("MissingPermission")
-    boolean pairDeviceWithoutUserConsent(final BluetoothDevice device, final TgiDeviceParingStateListener listener) {
+    void pairDeviceWithoutUserConsent(
+            final BluetoothDevice device,
+            final TgiDeviceParingStateListener listener) {
         listener.onParingSessionBegin();
-        boolean result = false;
-        //1，反射启动配对
+        //如果设备早已经配对好，直接走配对成功流程。
+        if(device.getBondState()==BluetoothDevice.BOND_BONDED){
+            listener.onDevicePairingStateChanged(device,BluetoothDevice.BOND_BONDED,BluetoothDevice.BOND_BONDED);
+            listener.onParingSessionEnd(BluetoothDevice.BOND_BONDED);
+            return;
+        }
+        //利用反射强制配对
         try {
             Method createBondMethod = BluetoothDevice.class.getMethod("createBond");
-            result = (Boolean) createBondMethod.invoke(device);
+            createBondMethod.invoke(device);
         } catch (Exception e) {
             e.getStackTrace();
             listener.onError(e.getMessage());
             listener.onParingSessionEnd(device.getBondState());
         }
-        //2，新建一个子线程实时检测配对结果
+        //新建一个子线程实时检测配对结果
         new Thread(new Runnable() {
             @Override
             public void run() {
                 @SuppressLint("MissingPermission")
                 int preState = device.getBondState();
+                long startTime= SystemClock.elapsedRealtime();
                 while (true) {
                     try {
-                        //3，每隔200毫秒检查一次
-                        Thread.sleep(200);
+                        //休眠500毫秒，等待状态更新
+                        Thread.sleep(500);
+                        //如果线程中断了，跳出。
+                        if(Thread.interrupted()){
+                            break;
+                        }
+                        //更新状态
                         @SuppressLint("MissingPermission")
                         int currentState = device.getBondState();
-                        //4，返回最新状态
                         listener.onDevicePairingStateChanged(device, preState, currentState);
-                        //5，如果配对结果返回成功/失败，结束流程
+
+                        //如果最新状态为已绑定或未绑定，流程结束。
                         if (preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_BONDED
                                 || preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_NONE
                                 || currentState == BluetoothDevice.BOND_BONDED) {
@@ -122,6 +135,13 @@ class TgiBleClientModel {
                             break;
                         }
                         preState = currentState;
+                        //如果超过十秒，流程结束，返回最新结果。
+                        long currentTime=SystemClock.elapsedRealtime();
+                        showLog("currentTime-startTime="+(currentTime-startTime));
+                        if(currentTime-startTime>5000){
+                            listener.onParingSessionEnd(currentState);
+                            break;
+                        }
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                         listener.onError(e.getMessage());
@@ -131,7 +151,6 @@ class TgiBleClientModel {
                 }
             }
         }).start();
-        return result;
     }
 
     boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {

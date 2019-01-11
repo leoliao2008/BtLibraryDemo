@@ -22,4 +22,8 @@ public class TgiBtDeviceConnectListener {
     public void onConnectFail(String errorMsg) {
 
     }
+
+    public void onDeviceUnbound(BluetoothDevice device) {
+
+    }
 }

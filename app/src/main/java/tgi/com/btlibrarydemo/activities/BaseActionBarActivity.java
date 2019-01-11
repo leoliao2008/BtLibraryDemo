@@ -1,4 +1,4 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.activities;
 
 import android.os.Bundle;
 import android.support.annotation.Nullable;

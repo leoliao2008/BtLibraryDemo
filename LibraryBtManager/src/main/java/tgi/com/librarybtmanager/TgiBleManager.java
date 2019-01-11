@@ -226,6 +226,10 @@ public class TgiBleManager {
         return mTgiBleClientModel.pairDeviceWithoutUserConsent(device);
     }
 
+    public void pairDeviceWithoutUserConsent(String devAddress, TgiDeviceParingStateListener listener) {
+        pairDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(devAddress),listener);
+    }
+
     public void pairDeviceWithoutUserConsent(BluetoothDevice bluetoothDevice, TgiDeviceParingStateListener listener) {
         mTgiBleClientModel.pairDeviceWithoutUserConsent(bluetoothDevice,listener);
     }

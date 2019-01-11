@@ -1,4 +1,4 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.base;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -24,9 +24,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.Semaphore;
 
+import tgi.com.btlibrarydemo.Constants;
+import tgi.com.btlibrarydemo.R;
+import tgi.com.btlibrarydemo.activities.BaseActionBarActivity;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiBleScanCallback;
 import tgi.com.librarybtmanager.TgiBtDeviceConnectListener;
+import tgi.com.librarybtmanager.TgiDeviceParingStateListener;
 import tgi.com.librarybtmanager.TgiReadCharCallback;
 import tgi.com.librarybtmanager.TgiToggleNotificationCallback;
 import tgi.com.librarybtmanager.TgiWriteCharCallback;
@@ -43,6 +47,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
     private PairedDevicesAdapter mPairedDevicesAdapter;
     private RecyclerView mRecyclerView;
     private String mConnectAddress;
+    private byte[] mWriteData = new byte[100];
 
 
     public static void start(Context context, String btDeviceAddr) {
@@ -54,6 +59,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Arrays.fill(mWriteData, (byte) 125);
         setContentView(R.layout.activity_connect_device);
         mListView = findViewById(R.id.activity_connect_device_list_view);
         mRecyclerView = findViewById(R.id.activity_connect_device_recycler_view);
@@ -85,24 +91,44 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                     boolean b = TgiBleManager.getInstance().removePairedDeviceWithoutUserConsent(device);
                     showLog("解除绑定：" + b);
                 } else {
-                    //                    boolean b = TgiBleManager.getInstance().pairDeviceWithoutUserConsent(device);
-                    //                    showLog("新增绑定：" + b);
-                    //                    if (b) {
-                    //
-                    //                    }
-                    TgiBleManager.getInstance().pairAndConnectAnotherDeviceOfTheSameType(device);
+                    TgiBleManager.getInstance().removePairedDeviceWithoutUserConsent(mConnectAddress);
+                    mConnectAddress = device.getAddress();
+                    pairAndConnect();
                 }
-                mRecyclerView.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
-                    }
-                }, 1000);
             }
         });
 
         scanDevices();
+        connectDevice(mConnectAddress);
 
+    }
+
+    private void pairAndConnect() {
+        TgiBleManager.getInstance().pairDeviceWithoutUserConsent(
+                mConnectAddress,
+                new TgiDeviceParingStateListener() {
+                    @Override
+                    public void onParingSessionEnd(int endState) {
+                        super.onParingSessionEnd(endState);
+                        if (endState != BluetoothDevice.BOND_BONDED) {
+                            mHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    pairAndConnect();
+                                }
+                            }, 1000);
+                        } else {
+                            mHandler.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    connectDevice(mConnectAddress);
+                                    mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
+                                }
+                            }, 1000);
+                        }
+
+                    }
+                });
     }
 
     private void scanDevices() {
@@ -113,7 +139,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                 showLog("scan starts");
                 mDeviceList.clear();
                 mDeviceList.addAll(TgiBleManager.getInstance().getBondedDevices());
-                mPairedDevicesAdapter.notifyDataSetChanged();
+                mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
             }
 
             @Override
@@ -124,15 +150,8 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                 }
                 if (!mDeviceList.contains(device)) {
                     mDeviceList.add(device);
-                    mPairedDevicesAdapter.notifyDataSetChanged();
+                    mPairedDevicesAdapter.updateBondedListAndNotifyDataSetChanged();
                 }
-            }
-
-            @Override
-            public void onPostScan() {
-                super.onPostScan();
-                showLog("scan stops");
-                connectDevice(mConnectAddress);
             }
 
             @Override
@@ -151,9 +170,10 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
 
     private void disconnectDevice() {
         TgiBleManager.getInstance().disConnectDevice();
+        TgiBleManager.getInstance().stopBtService(this);
     }
 
-    private void connectDevice(String deviceAddress) {
+    private void connectDevice(final String deviceAddress) {
         mLogs.clear();
         mAdapter.notifyDataSetChanged();
         TgiBleManager.getInstance().connectDevice(deviceAddress, new TgiBtDeviceConnectListener() {
@@ -197,6 +217,15 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
 
             }
 
+            @Override
+            public void onDeviceUnbound(BluetoothDevice device) {
+                super.onDeviceUnbound(device);
+                if(mConnectAddress.equals(device.getAddress())){
+                    //MC2.1自动解绑了
+                    pairAndConnect();
+                }
+
+            }
         });
     }
 
@@ -265,10 +294,9 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
         );
     }
 
-    private byte[] mWriteData = new byte[100];
+
 
     public void write(View view) {
-        Arrays.fill(mWriteData,(byte)125);
         TgiBleManager.getInstance().writeCharacteristic(
                 mWriteData,
                 Constants.MASTER_SERVICE_UUID,

@@ -1,4 +1,4 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.utils;
 
 import android.content.Context;
 import android.widget.Toast;

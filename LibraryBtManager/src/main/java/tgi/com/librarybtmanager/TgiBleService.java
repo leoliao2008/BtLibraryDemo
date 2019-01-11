@@ -277,12 +277,12 @@ public class TgiBleService extends Service {
             return pairDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(deviceAddress));
         }
 
-        public boolean pairDeviceWithoutUserConsent(String deviceAddress, TgiDeviceParingStateListener listener) {
-            return pairDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(deviceAddress), listener);
+        public void pairDeviceWithoutUserConsent(String deviceAddress, TgiDeviceParingStateListener listener) {
+            pairDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(deviceAddress), listener);
         }
 
-        public boolean pairDeviceWithoutUserConsent(BluetoothDevice device, TgiDeviceParingStateListener listener) {
-            return mTgiBleClientModel.pairDeviceWithoutUserConsent(device, listener);
+        public void pairDeviceWithoutUserConsent(BluetoothDevice device, TgiDeviceParingStateListener listener) {
+            mTgiBleClientModel.pairDeviceWithoutUserConsent(device, listener);
         }
 
         /**
@@ -349,39 +349,34 @@ public class TgiBleService extends Service {
                             return;
                         }
                         showLog("蓝牙连接状态有更新：" + gatt.getDevice().getName()
-                                + " " + gatt.getDevice().getAddress()
+                                + " " + gatt.getDevice().getAddress() + " "
                                 + mTgiBleClientModel.getBtDeviceConnectionStateDescription(newState));
 
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
                             //实测MC2.1中发现会返回两次连接成功的回调，这里忽略多余的回调。
-                            if(mBtGatt!=null){
+                            if (mBtGatt != null) {
                                 return;
                             }
                             //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
-//                            boolean discoverServices = gatt.discoverServices();
-//                            if (discoverServices) {
-//                                showLog("连接上蓝牙了，开始读取服务列表。");
-//                            } else {
-//                                showLog("连接上蓝牙了，开始读取服务列表,然而读取失败....500毫秒后重试。。。");
-//                                mHandler.postDelayed(new Runnable() {
-//                                    @Override
-//                                    public void run() {
-//                                        showLog("重新读取服务列表中...");
-//                                        gatt.discoverServices();
-//                                    }
-//                                }, 500);
-//                            }
-                            mHandler.postDelayed(new Runnable() {
-                                @Override
-                                public void run() {
-                                    //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。这里延迟一秒是为了更稳定。
-                                    gatt.discoverServices();
-                                }
-                            },1000);
+                            boolean discoverServices = gatt.discoverServices();
+                            if (discoverServices) {
+                                showLog("连接上蓝牙了，开始读取服务列表。");
+                            } else {
+                                showLog("连接上蓝牙了，开始读取服务列表,然而读取失败....500毫秒后重试。。。");
+                                mHandler.postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        showLog("重新读取服务列表中...");
+                                        gatt.discoverServices();
+                                    }
+                                }, 500);
+                            }
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                            //todo MC2.1同一台设备会返回两次连接失败的广播
                             //连接失败。
                             final BluetoothDevice device = gatt.getDevice();
                             gatt.disconnect();
+                            gatt.close();
                             if (mIsConnecting.get()) {
                                 mConnectSwitch.release();
                                 mIsConnecting.set(false);
@@ -408,6 +403,7 @@ public class TgiBleService extends Service {
                                                 Set<Map.Entry<String, TgiToggleNotificationSession>> notifications
                                                         = mTgiBtGattCallback.getCurrentNotificationCallbacks().entrySet();
                                                 showLog("当前注册通知数量：" + notifications.size());
+                                                mTgiBtGattCallback=null;
                                                 reconnect(device, notifications);
                                             } else {
                                                 showLog("mBtGatt=null 或者 mTgiBtGattCallback=null，本库永远不会跳到这里，如果会跳到这里，需检查代码。");
@@ -418,6 +414,8 @@ public class TgiBleService extends Service {
                                             // 更糟糕的是会阻塞蓝牙，这时如果利用反射配对其它设备将会失败。
                                             showLog("传输数据到一半的时候，被取消配对了，中断连接等待进一步指示。");
                                             disConnectDevice();
+                                            //todo 这里如何通知使用方？
+                                            listener.onDeviceUnbound(device);
                                         } catch (BtNotEnabledException e) {
                                             e.printStackTrace();
                                             //蓝牙模块默认服务启动时会打开，且在广播接收者那里已经监听蓝牙模块开关了，
@@ -441,13 +439,13 @@ public class TgiBleService extends Service {
                             mBtGatt = gatt;
                             mSingleThreadExecutor = Executors.newSingleThreadExecutor();
                             listener.onConnectSuccess(gatt);
-                            //todo 这里测试用
-                            boolean requestMtu = mBtGatt.requestMtu(100);
-                            if(requestMtu){
-                                showLog("MTU 需改请求成功。");
-                            }else {
-                                showLog("MTU 需改请求失败。");
-                            }
+                            //                            //todo 这里测试用
+                            //                            boolean requestMtu = mBtGatt.requestMtu(100);
+                            //                            if (requestMtu) {
+                            //                                showLog("MTU 修改请求成功。");
+                            //                            } else {
+                            //                                showLog("MTU 修改请求失败。");
+                            //                            }
 
                         } else if (status == BluetoothGatt.GATT_FAILURE) {
                             //连接失败，一秒后重新连接
@@ -466,10 +464,10 @@ public class TgiBleService extends Service {
                     public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
                         super.onMtuChanged(gatt, mtu, status);
                         //todo 用来测试，可能会删
-                        if(status==BluetoothGatt.GATT_SUCCESS){
-                            showLog("MTU的值设置成功，最新MTU容量："+mtu);
-                        }else {
-                            showLog("MTU的值设置失败，最新MTU容量："+mtu);
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            showLog("MTU的值设置成功，最新MTU容量：" + mtu);
+                        } else {
+                            showLog("MTU的值设置失败，最新MTU容量：" + mtu);
                         }
 
                     }

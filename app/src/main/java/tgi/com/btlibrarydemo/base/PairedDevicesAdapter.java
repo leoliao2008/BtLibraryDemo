@@ -1,8 +1,7 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.base;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
-import android.graphics.Paint;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
@@ -14,6 +13,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 
+import tgi.com.btlibrarydemo.R;
 import tgi.com.librarybtmanager.TgiBleManager;
 
 /**

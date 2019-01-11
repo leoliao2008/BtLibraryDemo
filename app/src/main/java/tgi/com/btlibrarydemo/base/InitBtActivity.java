@@ -1,4 +1,4 @@
-package tgi.com.btlibrarydemo;
+package tgi.com.btlibrarydemo.base;
 
 import android.content.Context;
 import android.content.Intent;
@@ -8,14 +8,16 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 
+import tgi.com.btlibrarydemo.R;
+import tgi.com.btlibrarydemo.activities.BaseActionBarActivity;
 import tgi.com.librarybtmanager.TgiBleInitCallBack;
 import tgi.com.librarybtmanager.TgiBleManager;
 
-public class BleTestActivity extends BaseActionBarActivity {
+public class InitBtActivity extends BaseActionBarActivity {
     private TgiBleManager mTgiBleManager;
 
     public static void start(Context context) {
-        Intent starter = new Intent(context, BleTestActivity.class);
+        Intent starter = new Intent(context, InitBtActivity.class);
         context.startActivity(starter);
     }
 
