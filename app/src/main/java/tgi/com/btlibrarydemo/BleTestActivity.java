@@ -3,13 +3,12 @@ package tgi.com.btlibrarydemo;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 
-import tgi.com.librarybtmanager.BleInitCallBack;
+import tgi.com.librarybtmanager.TgiBleInitCallBack;
 import tgi.com.librarybtmanager.TgiBleManager;
 
 public class BleTestActivity extends BaseActionBarActivity {
@@ -27,7 +26,7 @@ public class BleTestActivity extends BaseActionBarActivity {
         mTgiBleManager = TgiBleManager.getInstance();
         mTgiBleManager.setDebugMode(true);
 
-        mTgiBleManager.startBtService(this, new BleInitCallBack() {
+        mTgiBleManager.startBtService(this, new TgiBleInitCallBack() {
             @Override
             public void onError(String msg) {
                 super.onError(msg);

@@ -9,7 +9,7 @@ package tgi.com.librarybtmanager;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
-public class BleInitCallBack {
+public class TgiBleInitCallBack {
     public void onError(String msg) {
     }
 

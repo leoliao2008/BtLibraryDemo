@@ -6,10 +6,10 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
@@ -24,9 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.Semaphore;
 
-import tgi.com.librarybtmanager.BtDeviceConnectListener;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiBleScanCallback;
+import tgi.com.librarybtmanager.TgiBtDeviceConnectListener;
 import tgi.com.librarybtmanager.TgiReadCharCallback;
 import tgi.com.librarybtmanager.TgiToggleNotificationCallback;
 import tgi.com.librarybtmanager.TgiWriteCharCallback;
@@ -156,10 +156,11 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
     private void connectDevice(String deviceAddress) {
         mLogs.clear();
         mAdapter.notifyDataSetChanged();
-        TgiBleManager.getInstance().connectDevice(deviceAddress, new BtDeviceConnectListener() {
+        TgiBleManager.getInstance().connectDevice(deviceAddress, new TgiBtDeviceConnectListener() {
             @Override
             public void onConnectSuccess(final BluetoothGatt gatt) {
                 super.onConnectSuccess(gatt);
+                showLog("蓝牙连接成功，开始设置通知。");
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -264,7 +265,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
         );
     }
 
-    private byte[] mWriteData = new byte[10];
+    private byte[] mWriteData = new byte[100];
 
     public void write(View view) {
         Arrays.fill(mWriteData,(byte)125);

@@ -7,7 +7,7 @@ import android.bluetooth.BluetoothGattService;
 import java.util.Objects;
 import java.util.UUID;
 
-import static tgi.com.librarybtmanager.LogUtils.showLog;
+import static tgi.com.librarybtmanager.TgiBtManagerLogUtils.showLog;
 
 /**
  * Author: Administrator

@@ -7,13 +7,14 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 
+import java.lang.invoke.MutableCallSite;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static tgi.com.librarybtmanager.LogUtils.showLog;
+import static tgi.com.librarybtmanager.TgiBtManagerLogUtils.showLog;
 
 /**
  * Author: Administrator
@@ -80,7 +81,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                 characteristic.getUuid().toString(),
                 characteristic.getService().getUuid().toString());
         int size = mWriteSessions.size();
-        if(size<1){
+        if (size < 1) {
             showLog("mWriteSessions 数量为0，跳过。");
             return;
         }
@@ -132,8 +133,8 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                     }
                 } else {
                     //如果不成功，只要还没解除绑定，就一直设置到成功为止。
-                    if(gatt.getDevice().getBondState()== BluetoothDevice.BOND_BONDED){
-                        session.start(gatt,session.getTgiToggleNotificationCallback());
+                    if (gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED) {
+                        session.start(gatt, session.getTgiToggleNotificationCallback());
                     }
                     break;
                 }
@@ -163,10 +164,15 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.getTgiToggleNotificationCallback().onCharChanged(gatt, characteristic);
                     }
                 }
+
             }
         }
+    }
 
-
+    @Override
+    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+        super.onMtuChanged(gatt, mtu, status);
+        mGattCallback.onMtuChanged(gatt, mtu, status);
     }
 
     void registerWriteSession(TgiWriteCharSession tgiWriteCharSession) {

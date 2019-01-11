@@ -11,10 +11,10 @@ import android.util.Log;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
-class LogUtils {
+class TgiBtManagerLogUtils {
     private static boolean IS_DEBUG = false;
 
-    private LogUtils() {
+    private TgiBtManagerLogUtils() {
     }
 
     static void setIsDebug(boolean isDebug) {

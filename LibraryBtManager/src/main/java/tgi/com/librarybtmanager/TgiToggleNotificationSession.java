@@ -5,7 +5,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 
 import java.util.Objects;
 
-import static tgi.com.librarybtmanager.LogUtils.showLog;
+import static tgi.com.librarybtmanager.TgiBtManagerLogUtils.showLog;
 
 /**
  * Author: Administrator

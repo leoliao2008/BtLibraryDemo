@@ -13,9 +13,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Set;
 
-import static tgi.com.librarybtmanager.LogUtils.showLog;
+import static tgi.com.librarybtmanager.TgiBtManagerLogUtils.showLog;
 
-class BleClientModel {
+class TgiBleClientModel {
 
     boolean isBtSupported(PackageManager manager) {
         return manager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH);
@@ -88,7 +88,7 @@ class BleClientModel {
      * @return
      */
     @SuppressLint("MissingPermission")
-    boolean pairDeviceWithoutUserConsent(final BluetoothDevice device, final DeviceParingStateListener listener) {
+    boolean pairDeviceWithoutUserConsent(final BluetoothDevice device, final TgiDeviceParingStateListener listener) {
         listener.onParingSessionBegin();
         boolean result = false;
         //1，反射启动配对

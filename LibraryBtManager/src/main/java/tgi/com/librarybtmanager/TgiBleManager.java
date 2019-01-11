@@ -14,7 +14,7 @@ import android.support.annotation.RequiresApi;
 
 import java.util.ArrayList;
 
-import static tgi.com.librarybtmanager.LogUtils.showLog;
+import static tgi.com.librarybtmanager.TgiBtManagerLogUtils.showLog;
 
 /**
  * <p><b>Author:</b></p>
@@ -28,8 +28,8 @@ import static tgi.com.librarybtmanager.LogUtils.showLog;
 public class TgiBleManager {
     private static final int REQUEST_CODE_LOCATION_PERMISSION = 9528;
     private static TgiBleManager tgiBleManager;
-    private BleClientModel mBleClientModel;
-    private BleInitCallBack mBleInitCallBack;
+    private TgiBleClientModel mTgiBleClientModel;
+    private TgiBleInitCallBack mTgiBleInitCallBack;
     private TgiBleService.TgiBleServiceBinder mTgiBleServiceBinder;
     private ServiceConnection mServiceConnection;
     private TgiBleScanCallback mTgiBleScanCallback;
@@ -43,7 +43,7 @@ public class TgiBleManager {
 
 
     private TgiBleManager() {
-        mBleClientModel = new BleClientModel();
+        mTgiBleClientModel = new TgiBleClientModel();
         mHandler = new Handler();
     }
 
@@ -54,16 +54,16 @@ public class TgiBleManager {
         return tgiBleManager;
     }
 
-    public void startBtService(Activity activity, BleInitCallBack callBack) {
-        mBleInitCallBack = callBack;
+    public void startBtService(Activity activity, TgiBleInitCallBack callBack) {
+        mTgiBleInitCallBack = callBack;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             //1，检查是否有定位权限，如果没有，申请权限
-            boolean isAllGranted = BtPermissionsChecker.checkBtPermissions(activity);
+            boolean isAllGranted = TgiBtPermissionsChecker.checkBtPermissions(activity);
             if (isAllGranted) {
                 //2，检查蓝牙硬件是否支持BLE
                 checkIfBtAvailable(activity);
             } else {
-                BtPermissionsChecker.requestBtPermissions(activity, REQUEST_CODE_LOCATION_PERMISSION);
+                TgiBtPermissionsChecker.requestBtPermissions(activity, REQUEST_CODE_LOCATION_PERMISSION);
             }
         } else {
             //2，检查蓝牙硬件是否支持BLE
@@ -72,15 +72,15 @@ public class TgiBleManager {
     }
 
     private void checkIfBtAvailable(Activity activity) {
-        if (!mBleClientModel.isBtSupported(activity.getPackageManager())) {
-            if (mBleInitCallBack != null) {
-                mBleInitCallBack.onError("This device does not support bluetooth functions.");
+        if (!mTgiBleClientModel.isBtSupported(activity.getPackageManager())) {
+            if (mTgiBleInitCallBack != null) {
+                mTgiBleInitCallBack.onError("This device does not support bluetooth functions.");
             }
             return;
         }
-        if (!mBleClientModel.hasBleFeature(activity.getPackageManager())) {
-            if (mBleInitCallBack != null) {
-                mBleInitCallBack.onError("This device does not support BLE features.");
+        if (!mTgiBleClientModel.hasBleFeature(activity.getPackageManager())) {
+            if (mTgiBleInitCallBack != null) {
+                mTgiBleInitCallBack.onError("This device does not support BLE features.");
             }
             return;
         }
@@ -106,7 +106,7 @@ public class TgiBleManager {
     }
 
     public BluetoothDevice getDeviceByAddress(String devAddress) {
-        return mBleClientModel.getDeviceByAddress(devAddress);
+        return mTgiBleClientModel.getDeviceByAddress(devAddress);
     }
 
 
@@ -121,8 +121,8 @@ public class TgiBleManager {
                 //6，返回一个binder，用来操纵service。
                 //1-6流程到此完结。以上是本机蓝牙初始化的工作。
                 mTgiBleServiceBinder = (TgiBleService.TgiBleServiceBinder) service;
-                if (mBleInitCallBack != null) {
-                    mBleInitCallBack.onInitSuccess();
+                if (mTgiBleInitCallBack != null) {
+                    mTgiBleInitCallBack.onInitSuccess();
                 }
             }
 
@@ -141,8 +141,8 @@ public class TgiBleManager {
         );
         //如果没有粘结成功，返回相关信息方便debug。
         if (isSuccess) {
-            if (mBleInitCallBack != null) {
-                mBleInitCallBack.onError("Fail to bind service.");
+            if (mTgiBleInitCallBack != null) {
+                mTgiBleInitCallBack.onError("Fail to bind service.");
             }
         }
     }
@@ -156,8 +156,8 @@ public class TgiBleManager {
             mTgiBleServiceBinder = null;
         }
         //释放资源
-        if (mBleInitCallBack != null) {
-            mBleInitCallBack = null;
+        if (mTgiBleInitCallBack != null) {
+            mTgiBleInitCallBack = null;
         }
         //然后正式停止
         Intent intent = new Intent(activity, TgiBleService.class);
@@ -192,11 +192,11 @@ public class TgiBleManager {
     }
 
     public ArrayList<BluetoothDevice> getBondedDevices() {
-        return mBleClientModel.getBondedDevices();
+        return mTgiBleClientModel.getBondedDevices();
     }
 
     public boolean checkIfDeviceBonded(String deviceAddress) {
-        return checkIfDeviceBonded(mBleClientModel.getDeviceByAddress(deviceAddress));
+        return checkIfDeviceBonded(mTgiBleClientModel.getDeviceByAddress(deviceAddress));
     }
 
     @SuppressLint("MissingPermission")
@@ -205,12 +205,12 @@ public class TgiBleManager {
     }
 
     //根据远程设备地址进行蓝牙配对。
-    public void pairDevice(String deviceAddress, DeviceParingStateListener listener) {
-        pairDevice(mBleClientModel.getDeviceByAddress(deviceAddress), listener);
+    public void pairDevice(String deviceAddress, TgiDeviceParingStateListener listener) {
+        pairDevice(mTgiBleClientModel.getDeviceByAddress(deviceAddress), listener);
     }
 
     //蓝牙配对。是否需要增加取消配对状态的方法？不需要。连接哪个设备由主程序决定，跟配对清单没关系。
-    public void pairDevice(BluetoothDevice device, DeviceParingStateListener listener) {
+    public void pairDevice(BluetoothDevice device, TgiDeviceParingStateListener listener) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.pairDevice(device, listener);
         } else {
@@ -219,32 +219,32 @@ public class TgiBleManager {
     }
 
     public boolean pairDeviceWithoutUserConsent(String devAddress) {
-        return pairDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(devAddress));
+        return pairDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(devAddress));
     }
 
     public boolean pairDeviceWithoutUserConsent(BluetoothDevice device) {
-        return mBleClientModel.pairDeviceWithoutUserConsent(device);
+        return mTgiBleClientModel.pairDeviceWithoutUserConsent(device);
     }
 
-    public void pairDeviceWithoutUserConsent(BluetoothDevice bluetoothDevice, DeviceParingStateListener listener) {
-        mBleClientModel.pairDeviceWithoutUserConsent(bluetoothDevice,listener);
+    public void pairDeviceWithoutUserConsent(BluetoothDevice bluetoothDevice, TgiDeviceParingStateListener listener) {
+        mTgiBleClientModel.pairDeviceWithoutUserConsent(bluetoothDevice,listener);
     }
 
     public boolean removePairedDeviceWithoutUserConsent(String devAddress) {
-        return removePairedDeviceWithoutUserConsent(mBleClientModel.getDeviceByAddress(devAddress));
+        return removePairedDeviceWithoutUserConsent(mTgiBleClientModel.getDeviceByAddress(devAddress));
     }
 
     public boolean removePairedDeviceWithoutUserConsent(BluetoothDevice device) {
-        return mBleClientModel.removePairedDeviceWithoutUserConsent(device);
+        return mTgiBleClientModel.removePairedDeviceWithoutUserConsent(device);
     }
 
     //知道蓝牙地址，连接蓝牙设备
-    public void connectDevice(String deviceAddress, BtDeviceConnectListener listener) {
-        connectDevice(mBleClientModel.getDeviceByAddress(deviceAddress), listener);
+    public void connectDevice(String deviceAddress, TgiBtDeviceConnectListener listener) {
+        connectDevice(mTgiBleClientModel.getDeviceByAddress(deviceAddress), listener);
     }
 
     //知道蓝牙对象，连接蓝牙设备
-    public void connectDevice(BluetoothDevice device, BtDeviceConnectListener listener) {
+    public void connectDevice(BluetoothDevice device, TgiBtDeviceConnectListener listener) {
         if (checkIfServiceAvailable()) {
             mTgiBleServiceBinder.connectDevice(device, listener);
         } else {
@@ -253,7 +253,7 @@ public class TgiBleManager {
     }
 
     public void pairAndConnectAnotherDeviceOfTheSameType(String deviceAddress) {
-        pairAndConnectAnotherDeviceOfTheSameType(mBleClientModel.getDeviceByAddress(deviceAddress));
+        pairAndConnectAnotherDeviceOfTheSameType(mTgiBleClientModel.getDeviceByAddress(deviceAddress));
     }
 
     public void pairAndConnectAnotherDeviceOfTheSameType(BluetoothDevice device) {
@@ -312,7 +312,7 @@ public class TgiBleManager {
             final int requestCode,
             String[] permissions,
             int[] grantResults) {
-        BtPermissionsChecker.onRequestBtPermissionsResult(
+        TgiBtPermissionsChecker.onRequestBtPermissionsResult(
                 activity,
                 requestCode,
                 permissions,
@@ -336,16 +336,16 @@ public class TgiBleManager {
 
 
     public void setDebugMode(boolean isDebugMode) {
-        LogUtils.setIsDebug(isDebugMode);
+        TgiBtManagerLogUtils.setIsDebug(isDebugMode);
     }
 
 
     public String getBondSateDescription(int bondStateCode) {
-        return mBleClientModel.getBondStateDescription(bondStateCode);
+        return mTgiBleClientModel.getBondStateDescription(bondStateCode);
     }
 
     public String getBtEnableSateDescription(int enableSateCode) {
-        return mBleClientModel.getBtEnableStateDescription(enableSateCode);
+        return mTgiBleClientModel.getBtEnableStateDescription(enableSateCode);
     }
 
 

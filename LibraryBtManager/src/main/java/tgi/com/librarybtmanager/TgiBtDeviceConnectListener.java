@@ -12,7 +12,7 @@ import android.bluetooth.BluetoothGatt;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
-public class BtDeviceConnectListener {
+public class TgiBtDeviceConnectListener {
 
     public void onConnectSuccess(BluetoothGatt gatt) {
 

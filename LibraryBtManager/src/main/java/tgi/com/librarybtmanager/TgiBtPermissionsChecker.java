@@ -19,7 +19,7 @@ import android.support.v7.app.AlertDialog;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
-class BtPermissionsChecker {
+class TgiBtPermissionsChecker {
     private static int requestCode;
     private static AlertDialog alertDialog;
     private static String[] permissions = new String[]{
@@ -27,7 +27,7 @@ class BtPermissionsChecker {
             Manifest.permission.ACCESS_FINE_LOCATION
     };
 
-    private BtPermissionsChecker() {
+    private TgiBtPermissionsChecker() {
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
@@ -45,7 +45,7 @@ class BtPermissionsChecker {
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     static void requestBtPermissions(Activity activity, int requestCode) {
-        BtPermissionsChecker.requestCode = requestCode;
+        TgiBtPermissionsChecker.requestCode = requestCode;
         activity.requestPermissions(permissions, requestCode);
     }
 
@@ -60,7 +60,7 @@ class BtPermissionsChecker {
 
         boolean isConsume = false;
         boolean isAllGranted = true;
-        if (requestCode == BtPermissionsChecker.requestCode) {
+        if (requestCode == TgiBtPermissionsChecker.requestCode) {
             isConsume = true;
             for (int i = 0; i < grantResults.length; i++) {
                 if (grantResults[i] == PackageManager.PERMISSION_DENIED) {

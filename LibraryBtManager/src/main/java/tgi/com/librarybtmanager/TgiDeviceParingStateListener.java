@@ -11,7 +11,7 @@ import android.bluetooth.BluetoothDevice;
  * <i>BtLibraryDemo</i>
  * <p><b>Description:</b></p>
  */
-public class DeviceParingStateListener {
+public class TgiDeviceParingStateListener {
     public void onParingSessionBegin(){
 
     }

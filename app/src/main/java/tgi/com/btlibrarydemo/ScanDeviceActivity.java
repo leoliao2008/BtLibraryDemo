@@ -3,10 +3,10 @@ package tgi.com.btlibrarydemo;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,10 +17,9 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 
-import tgi.com.librarybtmanager.BtNotEnabledException;
-import tgi.com.librarybtmanager.DeviceParingStateListener;
 import tgi.com.librarybtmanager.TgiBleManager;
 import tgi.com.librarybtmanager.TgiBleScanCallback;
+import tgi.com.librarybtmanager.TgiDeviceParingStateListener;
 
 public class ScanDeviceActivity extends BaseActionBarActivity {
     private ListView mListView;
@@ -65,7 +64,7 @@ public class ScanDeviceActivity extends BaseActionBarActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 TgiBleManager.getInstance().pairDevice(
                         mDevices.get(position),
-                        new DeviceParingStateListener() {
+                        new TgiDeviceParingStateListener() {
                             @Override
                             public void onParingSessionBegin() {
                                 super.onParingSessionBegin();
@@ -120,6 +119,9 @@ public class ScanDeviceActivity extends BaseActionBarActivity {
             @Override
             public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
                 super.onLeScan(device, rssi, scanRecord);
+                if(TextUtils.isEmpty(device.getName())){
+                    return;
+                }
                 if (!mDevices.contains(device)) {
                     mDevices.add(device);
                     mAdapter.notifyDataSetChanged();
