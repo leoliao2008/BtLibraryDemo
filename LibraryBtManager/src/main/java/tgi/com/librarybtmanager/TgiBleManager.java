@@ -151,7 +151,12 @@ public class TgiBleManager {
     public void stopBtService(Activity activity) {
         //先解除绑定
         if (mServiceConnection != null && mTgiBleServiceBinder != null) {
-            activity.unbindService(mServiceConnection);
+            try {
+                activity.unbindService(mServiceConnection);
+            }catch (Exception e){
+                //java.lang.IllegalArgumentException: Service not registered:
+                e.printStackTrace();
+            }
             mServiceConnection = null;
             mTgiBleServiceBinder = null;
         }

@@ -35,6 +35,17 @@ class SessionUUIDGenerator {
                 .toString();
     }
 
+    static String genToggleNotificationSessionUUID(String devAddress, String descriptorUUID,String charUUID,String serviceUUID) {
+        return new StringBuilder().append(devAddress)
+                .append("@")
+                .append(serviceUUID)
+                .append("@")
+                .append(charUUID)
+                .append("@")
+                .append(descriptorUUID)
+                .toString();
+    }
+
     /**
      * 解析NotificationSessionUUID，返回一个长度为4的字符串数组，下标0-3分别表示bt device address,service uuid,char uuid,descriptor uuid。
      *

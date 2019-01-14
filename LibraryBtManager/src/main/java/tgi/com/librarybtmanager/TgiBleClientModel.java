@@ -129,8 +129,7 @@ class TgiBleClientModel {
 
                         //如果最新状态为已绑定或未绑定，流程结束。
                         if (preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_BONDED
-                                || preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_NONE
-                                || currentState == BluetoothDevice.BOND_BONDED) {
+                                || preState == BluetoothDevice.BOND_BONDING && currentState == BluetoothDevice.BOND_NONE) {
                             listener.onParingSessionEnd(currentState);
                             break;
                         }

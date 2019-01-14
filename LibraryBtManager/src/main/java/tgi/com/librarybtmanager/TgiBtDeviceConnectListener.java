@@ -23,7 +23,7 @@ public class TgiBtDeviceConnectListener {
 
     }
 
-    public void onDeviceUnbound(BluetoothDevice device) {
+    public void onDisconnectedBecauseDeviceUnbound(BluetoothDevice device) {
 
     }
 }

@@ -113,9 +113,11 @@ class TgiBtGattCallback extends BluetoothGattCallback {
         Iterator<TgiToggleNotificationSession> iterator = mToggleNotificationSessions.iterator();
         while (iterator.hasNext()) {
             TgiToggleNotificationSession session = iterator.next();
-            if (session.getSessionUUID().equals(uuid)) {
+            String sessionUUID = session.getSessionUUID();
+            if (sessionUUID.equals(uuid)) {
                 boolean toTurnOn = session.isToTurnOn();
                 if (status == BluetoothGatt.GATT_SUCCESS) {
+                    showLog("Descriptor被写入了。");
                     byte[] currentValue = descriptor.getValue();
                     byte[] expectValue = toTurnOn ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
                     if (Arrays.equals(currentValue, expectValue)) {
@@ -124,7 +126,7 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.getTgiToggleNotificationCallback().onError("The value of descriptor dose not match the target value.");
                     }
                     //更新map内容，这是为了onCharacteristicChanged中注册了通知的char的值发生变化时，用来传递变化的数据。
-                    String key = SessionUUIDGenerator.genToggleNotificationSessionUUID(gatt.getDevice().getAddress(), descriptor);
+                    String key = sessionUUID;
                     if (toTurnOn) {
                         mCharChangedListeners.put(key, session);
                     } else {
@@ -132,7 +134,8 @@ class TgiBtGattCallback extends BluetoothGattCallback {
                         session.close();
                     }
                 } else {
-                    //如果不成功，只要还没解除绑定，就一直设置到成功为止。
+                    //如果不成功，就一直设置到成功为止。
+                    showLog("Descriptor写入失败，重来...");
                     if (gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED) {
                         session.start(gatt, session.getTgiToggleNotificationCallback());
                     }
@@ -198,7 +201,8 @@ class TgiBtGattCallback extends BluetoothGattCallback {
     }
 
     void registerToggleNotificationSession(TgiToggleNotificationSession tgiToggleNotificationSession) {
-        if (!mToggleNotificationSessions.contains(tgiToggleNotificationSession)) {
+        boolean contains = mToggleNotificationSessions.contains(tgiToggleNotificationSession);
+        if (!contains) {
             mToggleNotificationSessions.add(tgiToggleNotificationSession);
         }
     }

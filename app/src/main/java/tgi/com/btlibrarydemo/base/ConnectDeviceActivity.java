@@ -47,7 +47,7 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
     private PairedDevicesAdapter mPairedDevicesAdapter;
     private RecyclerView mRecyclerView;
     private String mConnectAddress;
-    private byte[] mWriteData = new byte[100];
+    private byte[] mWriteData = new byte[20];
 
 
     public static void start(Context context, String btDeviceAddr) {
@@ -108,8 +108,16 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
                 mConnectAddress,
                 new TgiDeviceParingStateListener() {
                     @Override
+                    public void onDevicePairingStateChanged(BluetoothDevice device, int previousState, int currentState) {
+                        super.onDevicePairingStateChanged(device, previousState, currentState);
+                        showLog("pre: "+TgiBleManager.getInstance().getBondSateDescription(previousState));
+                        showLog("current: "+TgiBleManager.getInstance().getBondSateDescription(currentState));
+                    }
+
+                    @Override
                     public void onParingSessionEnd(int endState) {
                         super.onParingSessionEnd(endState);
+                        showLog("onParingSessionEnd: "+TgiBleManager.getInstance().getBondSateDescription(endState));
                         if (endState != BluetoothDevice.BOND_BONDED) {
                             mHandler.postDelayed(new Runnable() {
                                 @Override
@@ -218,12 +226,13 @@ public class ConnectDeviceActivity extends BaseActionBarActivity {
             }
 
             @Override
-            public void onDeviceUnbound(BluetoothDevice device) {
-                super.onDeviceUnbound(device);
-                if(mConnectAddress.equals(device.getAddress())){
-                    //MC2.1自动解绑了
-                    pairAndConnect();
-                }
+            public void onDisconnectedBecauseDeviceUnbound(BluetoothDevice device) {
+                super.onDisconnectedBecauseDeviceUnbound(device);
+                showLog("本地蓝牙地址："+deviceAddress);
+                showLog("断掉的蓝牙地址："+device.getAddress());
+                //MC2.1自动解绑了
+                showLog("MC2.1自动解绑了,开始重新配对");
+                pairAndConnect();
 
             }
         });
