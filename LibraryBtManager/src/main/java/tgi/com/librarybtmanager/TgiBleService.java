@@ -168,6 +168,10 @@ public class TgiBleService extends Service {
 
     protected class TgiBleServiceBinder extends Binder {
 
+        private Thread mThreadRepeatDiscovering;
+        private Semaphore mDiscoveringSwitch = new Semaphore(1);
+        ;
+
         /**
          * 设置是否蓝牙模块被关闭后自动重启以及重连远程设备。默认启动。
          *
@@ -464,6 +468,7 @@ public class TgiBleService extends Service {
                 //连接蓝牙设备第四步：连接成功，读取服务列表，否则后面无法顺利读写特性。
                 if (discoverServices) {
                     showLog("连接上蓝牙了，开始读取服务列表。");
+                    repeatDiscoveringUntilServiceDiscovered(gatt);
                 } else {
                     showLog("连接上蓝牙了，开始读取服务列表,然而读取失败....500毫秒后重试。。。");
                     mHandler.postDelayed(new Runnable() {
@@ -534,6 +539,42 @@ public class TgiBleService extends Service {
                     }, 1000);
                 }
             }
+        }
+
+        /**
+         * 启动一个子线程，监听服务列表是否及时读取，如果未能及时读取，每隔2500毫秒重复一次读取请求，
+         * 直到读取成功为止。
+         *
+         * @param gatt
+         */
+        private void repeatDiscoveringUntilServiceDiscovered(final BluetoothGatt gatt) {
+            if (mDiscoveringSwitch.tryAcquire()) {
+                mThreadRepeatDiscovering = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        while (true) {
+                            try {
+                                Thread.sleep(2500);
+                                if (mThreadRepeatDiscovering.isInterrupted()) {
+                                    break;
+                                }
+                                if (mBtGatt == null && mIsConnectingDevice.get() && mIsDiscoveringServices.get()) {
+                                    showLog("2500毫秒后未能返回服务列表，判断为服务列表读取失败，再次读取...");
+                                    gatt.discoverServices();
+                                } else {
+                                    break;
+                                }
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                                break;
+                            }
+                        }
+                        mDiscoveringSwitch.release();
+                    }
+                });
+                mThreadRepeatDiscovering.start();
+            }
+
         }
 
         /**
@@ -729,6 +770,10 @@ public class TgiBleService extends Service {
 
         //断开连接
         public void disConnectDevice() {
+            if (mThreadRepeatDiscovering != null) {
+                mThreadRepeatDiscovering.interrupt();
+                mThreadRepeatDiscovering = null;
+            }
             mIsConnectingDevice.set(false);
             //把命令队列清空
             if (mSingleThreadExecutor != null && !mSingleThreadExecutor.isShutdown()) {
@@ -750,6 +795,7 @@ public class TgiBleService extends Service {
             }
         }
     }
+
 
     private boolean checkBtConnectionBeforeProceed()
             throws BtNotConnectedYetException, BtNotBondedException, BtNotEnabledException {
@@ -910,31 +956,31 @@ public class TgiBleService extends Service {
                     }
                 }
             }
-//            //特殊情况：MC21自动解绑
-//            //如果当前状态为解绑中，需要检查一下是否由调用方主动解绑引起的
-//            if (previousState == BluetoothDevice.BOND_BONDED && currentState == BluetoothDevice.BOND_BONDING) {
-//                if (mUnboundBtDevice != null && mUnboundBtDevice.getAddress().equals(device.getAddress())) {
-//                    return;
-//                }
-//                //如果不是由调用方解绑引起的，属于MC21自动解绑，需要恢复原状
-//                mTgiBleServiceBinder.disConnectDevice();
-//                mTgiBleServiceBinder.pairDeviceWithoutUserConsent(
-//                        device,
-//                        new TgiDeviceParingStateListener() {
-//                            @Override
-//                            public void onParingSessionEnd(int endState) {
-//                                super.onParingSessionEnd(endState);
-//                                if (endState != BluetoothDevice.BOND_BONDED) {
-//                                    //如果不成功，一直调到成功
-//                                    mTgiBleServiceBinder.pairDeviceWithoutUserConsent(device, this);
-//                                } else {
-//                                    //成功后，重新连接蓝牙
-//                                    reconnect(device, null);
-//                                }
-//                            }
-//                        }
-//                );
-//            }
+            //            //特殊情况：MC21自动解绑
+            //            //如果当前状态为解绑中，需要检查一下是否由调用方主动解绑引起的
+            //            if (previousState == BluetoothDevice.BOND_BONDED && currentState == BluetoothDevice.BOND_BONDING) {
+            //                if (mUnboundBtDevice != null && mUnboundBtDevice.getAddress().equals(device.getAddress())) {
+            //                    return;
+            //                }
+            //                //如果不是由调用方解绑引起的，属于MC21自动解绑，需要恢复原状
+            //                mTgiBleServiceBinder.disConnectDevice();
+            //                mTgiBleServiceBinder.pairDeviceWithoutUserConsent(
+            //                        device,
+            //                        new TgiDeviceParingStateListener() {
+            //                            @Override
+            //                            public void onParingSessionEnd(int endState) {
+            //                                super.onParingSessionEnd(endState);
+            //                                if (endState != BluetoothDevice.BOND_BONDED) {
+            //                                    //如果不成功，一直调到成功
+            //                                    mTgiBleServiceBinder.pairDeviceWithoutUserConsent(device, this);
+            //                                } else {
+            //                                    //成功后，重新连接蓝牙
+            //                                    reconnect(device, null);
+            //                                }
+            //                            }
+            //                        }
+            //                );
+            //            }
         }
     }
 
